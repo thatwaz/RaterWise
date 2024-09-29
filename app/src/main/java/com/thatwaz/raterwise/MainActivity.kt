@@ -1,30 +1,42 @@
 package com.thatwaz.raterwise
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.thatwaz.raterwise.ui.navigation.BottomNavigationBar
+import com.thatwaz.raterwise.ui.screens.DailyTimeEntriesScreen
 import com.thatwaz.raterwise.ui.screens.HomeScreen
+import com.thatwaz.raterwise.ui.screens.TimeCardScreen
+import com.thatwaz.raterwise.ui.screens.WorkHistoryScreen
 import com.thatwaz.raterwise.ui.theme.RaterWiseTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 //Start Date 08/16/2024
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             RaterWiseTheme {
                 val navController = rememberNavController()
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = { BottomNavigationBar(navController = navController) }
+                ) { innerPadding ->
                     AppNavGraph(
                         navController = navController,
                         modifier = Modifier.padding(innerPadding)
@@ -34,26 +46,46 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun AppNavGraph(navController: NavHostController, modifier: Modifier = Modifier) {
     NavHost(
         navController = navController,
-        startDestination = "home",
+        startDestination = "time_clock",
         modifier = modifier
     ) {
-        composable("home") {
-            HomeScreen(
-                // Remove navigation to details, so no onNavigateToDetails is needed
-            )
+        // HomeScreen (Time Clock)
+        composable("time_clock") {
+            HomeScreen(navController = navController)
         }
-        // If details screen is no longer needed, remove the composable for it
-        // If you plan to add it back in the future, you can comment it out or remove entirely.
-        // composable(
-        //     route = "details/{taskId}",
-        //     arguments = listOf(navArgument("taskId") { type = NavType.StringType })
-        // ) { backStackEntry ->
-        //     val taskId = backStackEntry.arguments?.getString("taskId") ?: ""
-        //     DetailsScreen(taskId = taskId) // Display task details
-        // }
+
+        // TimeCardScreen (Time Card) with ViewModel Injection
+        composable("time_card") {
+            // Obtain ViewModel using Hilt in the Composable itself
+            TimeCardScreen(navController = navController)
+        }
+
+        // Work History Screen
+        composable("work_history") {
+            WorkHistoryScreen(navController = navController)
+        }
+
+        // DailyTimeEntriesScreen with Date Argument
+        composable(
+            route = "daily_entries/{date}",
+            arguments = listOf(navArgument("date") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val date = backStackEntry.arguments?.getString("date") ?: ""
+            DailyTimeEntriesScreen(date = date, navController = navController)
+        }
     }
 }
+
+
+
+
+
+
+
+

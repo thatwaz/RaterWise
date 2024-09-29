@@ -4,6 +4,8 @@ package com.thatwaz.raterwise.ui.screens
 
 
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,14 +13,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +42,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,33 +56,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.thatwaz.raterwise.tempdata.Task
-import com.thatwaz.raterwise.ui.utils.getCurrentTimeFormatted
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import com.thatwaz.raterwise.data.model.TimeEntry
+
+import com.thatwaz.raterwise.ui.viewmodel.TimeCardViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen() {
-    var isClockedIn by remember { mutableStateOf(false) }
-    var isTaskStarted by remember { mutableStateOf(false) }
-    var workTime by remember { mutableStateOf(0L) }
-    var taskTime by remember { mutableStateOf(0L) }
-    var maxTaskTime by remember { mutableStateOf("") }
-    var taskTimerColor by remember { mutableStateOf(Color.Green) }
-    var clockInTime by remember { mutableStateOf("") }
-    var isMaxTimeInputEnabled by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
-    val taskList = remember { mutableStateListOf<Task>() }
-    var taskCounter by remember { mutableStateOf(1) }
+fun HomeScreen(navController: NavController,     viewModel: TimeCardViewModel = hiltViewModel() ) {
+    val isClockedIn by remember { mutableStateOf(false) }
+    val taskList = viewModel.currentWorkPeriod.value?.dailySummaries?.flatMap { it.entries } ?: emptyList()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(text = "RaterWise", style = MaterialTheme.typography.titleMedium) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
             )
         }
     ) { paddingValues ->
@@ -84,35 +84,93 @@ fun HomeScreen() {
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
-                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Top Card: Clock In/Out, Work Time, Max Task Time Input
+            TaskControlsCard(viewModel = viewModel, isClockedIn = isClockedIn)
+
+            // Middle Card: Start Task, Chronometer, Finish Task
+            TaskTimerControlsCard(viewModel = viewModel, isClockedIn = isClockedIn)
+
+            // Bottom Card: Completed Tasks List
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(8.dp)
+            ) {
+                CompletedTasksList(taskList = taskList)
+            }
+
+            // Temporary Button for Navigation
+            Button(
+                onClick = { navController.navigate("timesheet") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text("Go to Time Sheet")
+            }
+        }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun TaskControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean) {
+    val scope = rememberCoroutineScope()
+    var clockInTime by remember { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ClockInOutButton(
                 isClockedIn = isClockedIn,
                 onClockToggle = {
-                    isClockedIn = !isClockedIn
+                    // Handle Clock In/Out Logic
                     if (isClockedIn) {
-                        clockInTime = getCurrentTimeFormatted()
+                        clockInTime = viewModel.getCurrentTimeFormatted()
+                        viewModel.startWorkSession()
                         scope.launch {
-                            while (isClockedIn) {
+                            while (viewModel.isClockedIn) {
                                 delay(60000L)
-                                workTime++
+                                viewModel.updateWorkTime()
                             }
                         }
                     } else {
-                        workTime = 0L
+                        viewModel.endWorkSession()
                     }
                 }
             )
 
             if (isClockedIn) {
-                ChronometerDisplay(clockInTime = clockInTime, workTime = workTime)
+                ChronometerDisplay(clockInTime = clockInTime, workTime = viewModel.totalWorkTime)
             }
+        }
+    }
+}
 
-            val contentModifier = if (isClockedIn) Modifier else Modifier.alpha(0.3f)
+@Composable
+fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean) {
+    val taskTime by remember { mutableStateOf(0L) }
+    var maxTaskTime by remember { mutableStateOf("") }
+    val isMaxTimeInputEnabled = true
 
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             MaxTaskTimeInput(
                 isClockedIn = isClockedIn,
-                contentModifier = contentModifier,
+                contentModifier = if (isClockedIn) Modifier else Modifier.alpha(0.3f),
                 maxTaskTime = maxTaskTime,
                 onMaxTaskTimeChange = { maxTaskTime = it },
                 isEnabled = isMaxTimeInputEnabled
@@ -120,74 +178,31 @@ fun HomeScreen() {
 
             TaskTimerControls(
                 isClockedIn = isClockedIn,
-                isTaskStarted = isTaskStarted,
+                isTaskStarted = viewModel.isTaskStarted,
                 maxTaskTime = maxTaskTime,
-                onTaskStart = {
-                    isTaskStarted = true
-                    isMaxTimeInputEnabled = false
-                    taskTime = 0L
-                    taskTimerColor = Color.Green
-                    scope.launch {
-                        while (isTaskStarted) {
-                            delay(60000L)
-                            taskTime++
-                            val maxTime = maxTaskTime.toLongOrNull() ?: 0L
-                            taskTimerColor = when {
-                                taskTime >= maxTime -> Color.Red
-                                taskTime >= maxTime * 0.8 -> Color.Yellow
-                                else -> Color.Green
-                            }
-                        }
-                    }
-                },
-                onTaskFinish = {
-                    isTaskStarted = false
-                    isMaxTimeInputEnabled = true
-                    val maxTime = maxTaskTime.toLongOrNull() ?: 0L
-                    taskList.add(
-                        Task(
-                            taskNumber = taskCounter++,
-                            maxTime = maxTime,
-                            actualTime = taskTime,
-                            difference = taskTime - maxTime
-                        )
-                    )
-                },
-                contentModifier = contentModifier
+                onTaskStart = { viewModel.startTask(maxTaskTime.toLongOrNull() ?: 0L) },
+                onTaskFinish = { viewModel.completeTask(taskTime) },
+                contentModifier = Modifier.padding(16.dp)
             )
-
-            // Display Completed Task List with proper weight usage
-            CompletedTasksList(taskList)
         }
     }
 }
+
 
 @Composable
-fun CompletedTasksList(taskList: List<Task>) {
-    Column(
+fun CompletedTasksList(taskList: List<TimeEntry>) {
+    LazyColumn(
         modifier = Modifier
-            .fillMaxSize() // Use fillMaxSize to allow LazyColumn to use the remaining space
-            .padding(vertical = 8.dp)
+            .fillMaxWidth()
+            .heightIn(max = 400.dp) // Constrain height to avoid infinite constraints
+            .padding(16.dp) // Padding inside the card
     ) {
-        if (taskList.isNotEmpty()) {
-            Text(
-                text = "Completed Tasks",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f) // Use this inside a Column or Row
-            ) {
-                items(taskList) { task ->
-                    CompletedTaskItem(task)
-                }
-            }
+        items(taskList) { task ->
+            CompletedTaskItem(task)
         }
     }
 }
+
 
 
 
@@ -445,70 +460,29 @@ fun TaskTimerControls(
 
 
 @Composable
-fun CompletedTaskItem(task: Task) {
+fun CompletedTaskItem(task: TimeEntry) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = "Task ${task.taskNumber}", style = MaterialTheme.typography.bodyMedium)
-        Text(text = "Max: ${task.maxTime} min", style = MaterialTheme.typography.bodyMedium)
-        Text(text = "Actual: ${task.actualTime} min", style = MaterialTheme.typography.bodyMedium)
+        Text(text = "Start: ${task.startTime}", style = MaterialTheme.typography.bodyMedium)
+        Text(text = "End: ${task.endTime}", style = MaterialTheme.typography.bodyMedium)
+        Text(text = "Duration: ${task.duration} min", style = MaterialTheme.typography.bodyMedium)
         Text(
-            text = "Diff: ${task.difference} min",
+            text = "Expected: ${task.expectedDuration} min",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "Status: ${if (task.isOverUnderAET) "Over/Under AET" else "Within AET"}",
             style = MaterialTheme.typography.bodyMedium,
-            color = if (task.difference < 0) Color.Green else Color.Red // Color coding for under/over max time
+            color = if (task.isOverUnderAET) Color.Red else Color.Green // Color coding for AET status
         )
     }
 }
-//
-//'@Composable
-//fun CompletedTasksList(taskList: List<Task>) {
-//    Column(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .weight(1f) // Use weight to allow the LazyColumn to take up available space
-//            .padding(vertical = 8.dp)
-//    ) {
-//        if (taskList.isNotEmpty()) {
-//            Text(
-//                text = "Completed Tasks",
-//                style = MaterialTheme.typography.titleMedium,
-//                modifier = Modifier.padding(vertical = 8.dp)
-//            )
-//
-//            LazyColumn(
-//                modifier = Modifier
-//                    .fillMaxWidth()
-//                    .fillMaxHeight() // Ensures LazyColumn takes up vertical space
-//            ) {
-//                items(taskList) { task ->
-//                    CompletedTaskItem(task)
-//                }
-//            }
-//        }
-//    }
-//}
-//
-//@Composable
-//fun CompletedTaskItem(task: Task) {
-//    Row(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .padding(8.dp),
-//        horizontalArrangement = Arrangement.SpaceBetween
-//    ) {
-//        Text(text = "Task ${task.taskNumber}", style = MaterialTheme.typography.bodyMedium)
-//        Text(text = "Max: ${task.maxTime} min", style = MaterialTheme.typography.bodyMedium)
-//        Text(text = "Actual: ${task.actualTime} min", style = MaterialTheme.typography.bodyMedium)
-//        Text(
-//            text = "Diff: ${task.difference} min",
-//            style = MaterialTheme.typography.bodyMedium,
-//            color = if (task.difference < 0) Color.Green else Color.Red
-//        )
-//    }
-//}
+
+
 
 
 
