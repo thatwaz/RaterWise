@@ -23,11 +23,17 @@ interface TimeTrackingDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTimeEntry(timeEntry: TimeEntry)
 
+    @Query("SELECT * FROM time_entries")
+    fun getAllTimeEntries(): Flow<List<TimeEntry>>
+
     @Update
     suspend fun updateTimeEntry(timeEntry: TimeEntry)
 
     @Delete
     suspend fun deleteTimeEntry(timeEntry: TimeEntry)
+
+    @Query("DELETE FROM time_entries") // Replace `time_entry` with your table name
+    suspend fun deleteAllTimeEntries()
 
 
     @Query("SELECT * FROM daily_work_summaries WHERE date = :date")

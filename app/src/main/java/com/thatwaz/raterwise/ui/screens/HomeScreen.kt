@@ -41,6 +41,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,9 +69,13 @@ import kotlinx.coroutines.launch
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController,     viewModel: TimeCardViewModel = hiltViewModel() ) {
-    val isClockedIn by remember { mutableStateOf(false) }
-    val taskList = viewModel.currentWorkPeriod.value?.dailySummaries?.flatMap { it.entries } ?: emptyList()
+fun HomeScreen(navController: NavController, viewModel: TimeCardViewModel = hiltViewModel()) {
+    val isClockedIn by viewModel.isClockedIn.collectAsState()
+    val timeEntriesByDay by viewModel.timeEntriesByDay.collectAsState()
+
+    // Get the list of tasks for the current date
+    val today = viewModel.getCurrentDateFormatted()
+    val taskList = timeEntriesByDay[today] ?: emptyList() // Get tasks for today only
 
     Scaffold(
         topBar = {
@@ -93,7 +98,7 @@ fun HomeScreen(navController: NavController,     viewModel: TimeCardViewModel = 
             // Middle Card: Start Task, Chronometer, Finish Task
             TaskTimerControlsCard(viewModel = viewModel, isClockedIn = isClockedIn)
 
-            // Bottom Card: Completed Tasks List
+            // Bottom Card: Completed Tasks List for Today
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(8.dp)
@@ -131,16 +136,9 @@ fun TaskControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean) {
             ClockInOutButton(
                 isClockedIn = isClockedIn,
                 onClockToggle = {
-                    // Handle Clock In/Out Logic
-                    if (isClockedIn) {
+                    if (!isClockedIn) {
                         clockInTime = viewModel.getCurrentTimeFormatted()
                         viewModel.startWorkSession()
-                        scope.launch {
-                            while (viewModel.isClockedIn) {
-                                delay(60000L)
-                                viewModel.updateWorkTime()
-                            }
-                        }
                     } else {
                         viewModel.endWorkSession()
                     }
@@ -154,6 +152,7 @@ fun TaskControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean) {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean) {
     val taskTime by remember { mutableStateOf(0L) }
@@ -180,8 +179,8 @@ fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean) {
                 isClockedIn = isClockedIn,
                 isTaskStarted = viewModel.isTaskStarted,
                 maxTaskTime = maxTaskTime,
-                onTaskStart = { viewModel.startTask(maxTaskTime.toLongOrNull() ?: 0L) },
-                onTaskFinish = { viewModel.completeTask(taskTime) },
+                onTaskStart = { viewModel.startTask() }, // Start task only, not session
+                onTaskFinish = { viewModel.completeTask() }, // Complete task only
                 contentModifier = Modifier.padding(16.dp)
             )
         }

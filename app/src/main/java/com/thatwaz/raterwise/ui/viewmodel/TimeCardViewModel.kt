@@ -1,121 +1,184 @@
 package com.thatwaz.raterwise.ui.viewmodel
 
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.thatwaz.raterwise.data.model.DailyWorkSummary
 import com.thatwaz.raterwise.data.model.TimeEntry
-import com.thatwaz.raterwise.data.model.WorkPeriod
 import com.thatwaz.raterwise.data.repository.TimeTrackingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
-
 
 @HiltViewModel
 class TimeCardViewModel @Inject constructor(
     private val repository: TimeTrackingRepository
 ) : ViewModel() {
-    var isClockedIn by mutableStateOf(false)
-    var isTaskStarted by mutableStateOf(false)
-    var totalWorkTime by mutableStateOf(0L)
-    var currentTaskTime by mutableStateOf(0L)
 
-    private val _currentWorkPeriod = mutableStateOf<WorkPeriod?>(null)
-    val currentWorkPeriod: State<WorkPeriod?> = _currentWorkPeriod
+    var isTaskStarted by mutableStateOf(false) // Track whether a task is active
+    var totalWorkTime by mutableStateOf(0L)
+    var currentTaskTime by mutableStateOf(0L) // Track the time for the current task
+
+    private val _isClockedIn = MutableStateFlow(false)
+    val isClockedIn: StateFlow<Boolean> = _isClockedIn
+
+    private val _timeEntriesByDay = MutableStateFlow<Map<String, List<TimeEntry>>>(emptyMap())
+    val timeEntriesByDay: StateFlow<Map<String, List<TimeEntry>>> = _timeEntriesByDay
+
+    private var clockInTime: String = "" // Track the clock-in time
+    private var currentDate: String = "" // Track the current date
+    private var taskStartTime: String = "" // Track task start time
 
     init {
-        loadCurrentWorkPeriod()
-    }
-
-    fun loadCurrentWorkPeriod() {
-        viewModelScope.launch {
-            repository.getCurrentWorkPeriod().collect { period ->
-                _currentWorkPeriod.value = period
-            }
-        }
-    }
-
-    fun startWorkSession() {
-        isClockedIn = true
-    }
-
-    fun endWorkSession() {
-        isClockedIn = false
-        totalWorkTime = 0L
-    }
-
-    fun updateWorkTime() {
-        totalWorkTime++
-    }
-
-    fun startTask(maxTime: Long) {
-        isTaskStarted = true
-        currentTaskTime = 0L
-    }
-
-    fun completeTask(taskTime: Long) {
-        isTaskStarted = false
+        updateTimeEntriesByDay() // Load initial data
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    fun getCurrentTimeFormatted(): String {
-        val current = LocalTime.now()
-        return current.format(DateTimeFormatter.ofPattern("hh:mm a"))
+    fun startWorkSession() {
+        _isClockedIn.value = true
+        clockInTime = getCurrentTimeFormatted()
+        currentDate = getCurrentDateFormatted()
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun endWorkSession() {
+        _isClockedIn.value = false
+        val clockOutTime = getCurrentTimeFormatted()
 
+        // Check if `clockInTime` is not empty to prevent unintended entries
+        if (clockInTime.isNotEmpty()) {
+            val timeEntry = TimeEntry(
+                startTime = clockInTime,
+                endTime = clockOutTime,
+                date = currentDate,
+                duration = calculateDuration(clockInTime, clockOutTime),
+                isSubmitted = false, // Set false by default
+                expectedDuration = 0, // Set default expected duration
+                isOverUnderAET = false // Default AET status
+            )
 
-    private val _selectedDaySummary = mutableStateOf<DailyWorkSummary?>(null)
-    val selectedDaySummary: State<DailyWorkSummary?> = _selectedDaySummary
-
-    private val hourlyWage = 20.0 // Set an example hourly wage, should be configurable
-
-
-
-    // Calculate earnings for the entire work period based on the hourly wage
-    private fun calculateEarningsForPeriod(period: WorkPeriod): WorkPeriod {
-        var totalEarnings = 0.0
-
-        // Calculate daily earnings and aggregate them for the period
-        val updatedDailySummaries = period.dailySummaries.map { dailySummary ->
-            val dailyEarnings = dailySummary.timeWorked / 60.0 * hourlyWage
-            totalEarnings += dailyEarnings
-
-            dailySummary.copy(totalEarnings = dailyEarnings)
+            viewModelScope.launch {
+                repository.insertTimeEntry(timeEntry)
+                updateTimeEntriesByDay() // Refresh data after inserting a new entry
+            }
         }
 
-        // Return an updated WorkPeriod with calculated earnings
-        return period.copy(
-            totalEarnings = totalEarnings,
-            dailySummaries = updatedDailySummaries
-        )
+        totalWorkTime = 0L // Reset work time
     }
 
-    // Load a specific day's summary and calculate its earnings
-    fun loadDailySummary(date: String) {
-        viewModelScope.launch {
-            repository.getDailySummary(date).collectLatest { dailySummary ->
-                // Calculate the total earnings for the day
-                val dailyEarnings = dailySummary.timeWorked / 60.0 * hourlyWage
-                _selectedDaySummary.value = dailySummary.copy(totalEarnings = dailyEarnings)
+
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun startTask() {
+        if (isClockedIn.value) {
+            isTaskStarted = true
+            taskStartTime = getCurrentTimeFormatted() // Record the task start time
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun completeTask() {
+        if (isClockedIn.value && isTaskStarted) {
+            isTaskStarted = false
+            val taskEndTime = getCurrentTimeFormatted() // Get the task end time
+            val taskDuration = calculateDuration(taskStartTime, taskEndTime)
+
+            val taskEntry = TimeEntry(
+                startTime = taskStartTime,
+                endTime = taskEndTime,
+                date = currentDate,
+                duration = taskDuration,
+                isSubmitted = false, // Initially mark as not submitted
+                expectedDuration = 0,
+                isOverUnderAET = false
+            )
+
+            viewModelScope.launch {
+                repository.insertTimeEntry(taskEntry)
+                updateTimeEntriesByDay() // Refresh data to reflect the new task
             }
         }
     }
 
-    // Submit a time entry and refresh the corresponding daily summary
-    fun submitTimeEntry(date: String, entry: TimeEntry) {
+    fun updateWorkTime() {
+        totalWorkTime += 1
+    }
+
+
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun getCurrentTimeFormatted(): String {
+        val formatter = DateTimeFormatter.ofPattern("hh:mm a")
+        return LocalTime.now().format(formatter)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun getCurrentDateFormatted(): String {
+        return LocalDate.now().toString()
+    }
+
+    // Calculate duration between two times in minutes
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun calculateDuration(start: String, end: String): Int {
+        val formatter = DateTimeFormatter.ofPattern("hh:mm a")
+        val startTime = LocalTime.parse(start, formatter)
+        val endTime = LocalTime.parse(end, formatter)
+        return java.time.Duration.between(startTime, endTime).toMinutes().toInt()
+    }
+
+    fun submitTimeEntry(updatedEntry: TimeEntry) {
         viewModelScope.launch {
-            repository.submitTimeEntry(date, entry)
-            loadDailySummary(date) // Refresh the data after submission
+            // Update the entry with the new submission state
+            repository.updateTimeEntry(updatedEntry)
+            updateTimeEntriesByDay() // Refresh the entries list after updating
         }
     }
+
+
+
+    // Toggling submission state of a single entry
+    fun toggleTimeEntrySubmission(entry: TimeEntry) {
+        viewModelScope.launch {
+            val updatedEntry = entry.copy(isSubmitted = !entry.isSubmitted)
+            Log.d("TimeCardViewModel", "Toggling entry: $updatedEntry") // Debug log
+            repository.updateTimeEntry(updatedEntry) // Update the entry in the database
+            updateTimeEntriesByDay() // Refresh the list
+        }
+    }
+
+    // Load and group time entries by date
+    fun updateTimeEntriesByDay() {
+        viewModelScope.launch {
+            repository.getAllTimeEntries().collect { entries ->
+                _timeEntriesByDay.value = entries.groupBy { it.date }
+                Log.d("TimeCardViewModel", "Updated time entries by day: ${_timeEntriesByDay.value}")
+            }
+        }
+    }
+
+
+
+
+    fun deleteAllEntries() {
+        viewModelScope.launch {
+            repository.deleteAllTimeEntries()
+            updateTimeEntriesByDay() // Refresh the entries after deletion
+        }
+    }
+
+
+
+
+
+
 }
+
