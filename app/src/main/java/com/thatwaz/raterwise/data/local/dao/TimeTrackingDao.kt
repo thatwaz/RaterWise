@@ -20,8 +20,11 @@ interface TimeTrackingDao {
     @Query("SELECT * FROM time_entries WHERE date = :date")
     fun getTimeEntriesByDate(date: String): Flow<List<TimeEntry>>
 
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+//    suspend fun insertTimeEntry(timeEntry: TimeEntry)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTimeEntry(timeEntry: TimeEntry)
+    suspend fun insertTimeEntry(timeEntry: TimeEntry): Long
 
     @Query("SELECT * FROM time_entries")
     fun getAllTimeEntries(): Flow<List<TimeEntry>>

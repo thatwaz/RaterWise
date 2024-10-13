@@ -4,7 +4,12 @@ package com.thatwaz.raterwise.ui.screens
 
 
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Build
+import android.os.IBinder
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,6 +58,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -60,28 +67,71 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.thatwaz.raterwise.data.model.TimeEntry
+import com.thatwaz.raterwise.ui.utils.TimerService
 
 import com.thatwaz.raterwise.ui.viewmodel.TimeCardViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController, viewModel: TimeCardViewModel = hiltViewModel()) {
+fun HomeScreen(
+    navController: NavController,
+    viewModel: TimeCardViewModel = hiltViewModel()
+) {
+    val context = LocalContext.current
+
+    // Observing states from ViewModel
     val isClockedIn by viewModel.isClockedIn.collectAsState()
     val timeEntriesByDay by viewModel.timeEntriesByDay.collectAsState()
 
-    // Get the list of tasks for the current date
+    // Restore state when the Composable is launched
+    LaunchedEffect(Unit) {
+        viewModel.restoreSessionState()
+    }
+
+    // Local variable for TimerService reference
+    var timerService: TimerService? by remember { mutableStateOf(null) }
+
+    // Handle service binding and unbinding safely
+    DisposableEffect(Unit) {
+        val serviceConnection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                val localBinder = binder as? TimerService.TimerBinder
+                timerService = localBinder?.getService()
+
+                // Start the timer if user is clocked in
+                if (isClockedIn) {
+                    timerService?.startTimer(viewModel.clockInTime ?: "")
+                }
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                timerService = null
+            }
+        }
+
+        // Bind to the TimerService
+        val intent = Intent(context, TimerService::class.java)
+        context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+
+        // Unbind when the Composable leaves the screen
+        onDispose {
+            context.unbindService(serviceConnection)
+        }
+    }
+
     val today = viewModel.getCurrentDateFormatted()
-    val taskList = timeEntriesByDay[today] ?: emptyList() // Get tasks for today only
+    val taskList = timeEntriesByDay[today] ?: emptyList()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "RaterWise", style = MaterialTheme.typography.titleMedium) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+                title = { Text(text = "RaterWise") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
             )
         }
     ) { paddingValues ->
@@ -92,21 +142,16 @@ fun HomeScreen(navController: NavController, viewModel: TimeCardViewModel = hilt
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Top Card: Clock In/Out, Work Time, Max Task Time Input
-            TaskControlsCard(viewModel = viewModel, isClockedIn = isClockedIn)
+            TaskControlsCard(viewModel, isClockedIn, context)
+            TaskTimerControlsCard(viewModel, isClockedIn, context)
 
-            // Middle Card: Start Task, Chronometer, Finish Task
-            TaskTimerControlsCard(viewModel = viewModel, isClockedIn = isClockedIn)
-
-            // Bottom Card: Completed Tasks List for Today
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(8.dp)
             ) {
-                CompletedTasksList(taskList = taskList)
+                CompletedTasksList(taskList)
             }
 
-            // Temporary Button for Navigation
             Button(
                 onClick = { navController.navigate("timesheet") },
                 modifier = Modifier
@@ -119,11 +164,19 @@ fun HomeScreen(navController: NavController, viewModel: TimeCardViewModel = hilt
     }
 }
 
+
+
+
+
+
+
+
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun TaskControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean) {
-    val scope = rememberCoroutineScope()
-    var clockInTime by remember { mutableStateOf("") }
+fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean, context: Context) {
+    val taskTime by remember { mutableStateOf(0L) }
+    var maxTaskTime by remember { mutableStateOf("") }
+    val isMaxTimeInputEnabled = true
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -133,24 +186,120 @@ fun TaskControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ClockInOutButton(
+            MaxTaskTimeInput(
                 isClockedIn = isClockedIn,
-                onClockToggle = {
-                    if (!isClockedIn) {
-                        clockInTime = viewModel.getCurrentTimeFormatted()
-                        viewModel.startWorkSession()
-                    } else {
-                        viewModel.endWorkSession()
-                    }
-                }
+                contentModifier = if (isClockedIn) Modifier else Modifier.alpha(0.3f),
+                maxTaskTime = maxTaskTime,
+                onMaxTaskTimeChange = { maxTaskTime = it },
+                isEnabled = isMaxTimeInputEnabled
             )
 
+            TaskTimerControls(
+                isClockedIn = isClockedIn,
+                isTaskStarted = viewModel.isTaskStarted,
+                maxTaskTime = maxTaskTime,
+                onTaskStart = {
+                    viewModel.startTask()
+                    viewModel.startForegroundService(context) // Start service when task starts
+                },
+                onTaskFinish = {
+                    viewModel.completeTask()
+                    viewModel.stopForegroundService(context) // Stop service when task completes
+                },
+                contentModifier = Modifier.padding(16.dp)
+            )
+        }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun TaskControlsCard(
+    viewModel: TimeCardViewModel,
+    isClockedIn: Boolean,
+    context: Context
+) {
+    // Observe the clockInTime from the ViewModel directly
+    val clockInTime = viewModel.clockInTime ?: "Not Clocked In"
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp), // Optional padding for better spacing
+        elevation = CardDefaults.cardElevation(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Clock In/Out Button
+            Button(
+                onClick = {
+                    if (isClockedIn) {
+                        viewModel.endWorkSession()
+                    } else {
+                        viewModel.startWorkSession()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (isClockedIn) "Clock Out" else "Clock In")
+            }
+
+            // Display Clocked In Time only when the user is clocked in
             if (isClockedIn) {
-                ChronometerDisplay(clockInTime = clockInTime, workTime = viewModel.totalWorkTime)
+                Text(
+                    text = "Clocked in at: $clockInTime",
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }
 }
+
+
+//@RequiresApi(Build.VERSION_CODES.O)
+//@Composable
+//fun TaskControlsCard(
+//    viewModel: TimeCardViewModel,
+//    isClockedIn: Boolean,
+//    context: Context
+//) {
+//    // Use the clockInTime from the ViewModel
+//    val clockInTime = viewModel.clockInTime ?: "Not Clocked In"
+//
+//    Card(
+//        modifier = Modifier.fillMaxWidth(),
+//        elevation = CardDefaults.cardElevation(8.dp)
+//    ) {
+//        Column(
+//            modifier = Modifier.padding(16.dp),
+//            verticalArrangement = Arrangement.spacedBy(8.dp)
+//        ) {
+//            Button(
+//                onClick = {
+//                    if (isClockedIn) {
+//                        viewModel.endWorkSession(context) // Pass context here
+//                    } else {
+//                        viewModel.startWorkSession(context) // Pass context here
+//                    }
+//                },
+//                modifier = Modifier.fillMaxWidth()
+//            ) {
+//                Text(if (isClockedIn) "Clock Out" else "Clock In")
+//            }
+//
+//            if (isClockedIn) {
+//                Text(
+//                    text = "Clocked in at: $clockInTime",
+//                    style = MaterialTheme.typography.bodyMedium
+//                )
+//            }
+//        }
+//    }
+//}
+
+
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -186,6 +335,7 @@ fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean) {
         }
     }
 }
+
 
 
 @Composable
