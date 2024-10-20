@@ -30,6 +30,8 @@ interface TimeTrackingRepository {
     suspend fun getSession(): Session?
     suspend fun saveSession(session: Session)
     suspend fun clearSession()
+
+    fun calculateOverUnderAET(duration: Int, expectedDuration: Int): Int
 }
 
 //

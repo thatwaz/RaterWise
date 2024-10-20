@@ -1,8 +1,5 @@
 package com.thatwaz.raterwise.ui.utils
 
-// File: utils/TimerService.kt
-
-
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -19,18 +16,24 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+// File: utils/TimerService.kt
+
+
 class TimerService : Service() {
 
     interface TimerCallback {
         fun onTimeUpdate(elapsedTime: Long, clockInTime: String)
+        fun onTaskTimeUpdate(taskSeconds: Long)
     }
 
     private val binder = TimerBinder()
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private var elapsedTime = 0L
+    private var taskSeconds = 0L // Track task seconds
     private var clockInTime: String? = null
     private var isTimerRunning = false
+    private var isTaskTimerRunning = false // Track task timer state
 
     var timerCallback: TimerCallback? = null
 
@@ -40,12 +43,14 @@ class TimerService : Service() {
 
     override fun onBind(intent: Intent?): IBinder = binder
 
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         startForeground(1, getNotification("Tracking time..."))
     }
 
+    // Start regular timer
     fun startTimer(clockInTime: String) {
         if (isTimerRunning) return
         this.clockInTime = clockInTime
@@ -58,6 +63,24 @@ class TimerService : Service() {
                 timerCallback?.onTimeUpdate(elapsedTime, clockInTime) // Notify callback
             }
         }
+    }
+
+    // Start task-specific timer
+    fun startTaskTimer() {
+        if (isTaskTimerRunning) return
+        isTaskTimerRunning = true
+
+        serviceScope.launch {
+            while (isTaskTimerRunning) {
+                delay(1000L) // Update task timer every second
+                taskSeconds++
+                timerCallback?.onTaskTimeUpdate(taskSeconds) // Notify callback
+            }
+        }
+    }
+
+    fun stopTaskTimer() {
+        isTaskTimerRunning = false
     }
 
     fun stopTimer() {
@@ -92,6 +115,83 @@ class TimerService : Service() {
         serviceScope.cancel()
     }
 }
+
+
+
+//class TimerService : Service() {
+//
+//    interface TimerCallback {
+//        fun onTimeUpdate(elapsedTime: Long, clockInTime: String)
+//    }
+//
+//
+//    private val binder = TimerBinder()
+//    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+//
+//    private var elapsedTime = 0L
+//    private var clockInTime: String? = null
+//    private var isTimerRunning = false
+//
+//    var timerCallback: TimerCallback? = null
+//
+//    inner class TimerBinder : Binder() {
+//        fun getService(): TimerService = this@TimerService
+//    }
+//
+//    override fun onBind(intent: Intent?): IBinder = binder
+//
+//    override fun onCreate() {
+//        super.onCreate()
+//        createNotificationChannel()
+//        startForeground(1, getNotification("Tracking time..."))
+//    }
+//
+//    fun startTimer(clockInTime: String) {
+//        if (isTimerRunning) return
+//        this.clockInTime = clockInTime
+//        isTimerRunning = true
+//
+//        serviceScope.launch {
+//            while (isTimerRunning) {
+//                delay(1000L) // Update every second
+//                elapsedTime++
+//                timerCallback?.onTimeUpdate(elapsedTime, clockInTime) // Notify callback
+//            }
+//        }
+//    }
+//
+//    fun stopTimer() {
+//        isTimerRunning = false
+//        elapsedTime = 0L
+//        timerCallback?.onTimeUpdate(elapsedTime, clockInTime ?: "") // Notify callback
+//        stopForeground(true)
+//    }
+//
+//    private fun createNotificationChannel() {
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//            val channel = NotificationChannel(
+//                "timer_channel",
+//                "Time Tracking Service",
+//                NotificationManager.IMPORTANCE_LOW
+//            )
+//            val manager = getSystemService(NotificationManager::class.java)
+//            manager?.createNotificationChannel(channel)
+//        }
+//    }
+//
+//    private fun getNotification(text: String): Notification {
+//        return NotificationCompat.Builder(this, "timer_channel")
+//            .setContentTitle("Time Tracking Service")
+//            .setContentText(text)
+//            .setSmallIcon(android.R.drawable.ic_notification_overlay)
+//            .build()
+//    }
+//
+//    override fun onDestroy() {
+//        super.onDestroy()
+//        serviceScope.cancel()
+//    }
+//}
 
 
 

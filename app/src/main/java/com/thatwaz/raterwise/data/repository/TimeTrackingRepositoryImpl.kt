@@ -114,6 +114,10 @@ class TimeTrackingRepositoryImpl @Inject constructor(
         Log.d("TimeTrackingRepo", "Clearing session")
         sessionDao.clearSession()
     }
+
+    override fun calculateOverUnderAET(duration: Int, expectedDuration: Int): Int {
+        return duration - expectedDuration
+    }
 }
 
 
