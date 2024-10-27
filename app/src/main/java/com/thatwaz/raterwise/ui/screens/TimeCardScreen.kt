@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.thatwaz.raterwise.data.model.TimeEntry
+import com.thatwaz.raterwise.data.model.TaskTimeEntry
 import com.thatwaz.raterwise.ui.viewmodel.TimeCardViewModel
 
 
@@ -58,7 +58,7 @@ fun TimeCardScreen(navController: NavController, viewModel: TimeCardViewModel = 
 }
 
 @Composable
-fun DateCard(date: String, timeEntries: List<TimeEntry>, onClick: () -> Unit) {
+fun DateCard(date: String, timeEntries: List<TaskTimeEntry>, onClick: () -> Unit) {
     val totalMinutes = timeEntries.sumOf { it.duration }
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60

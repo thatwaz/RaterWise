@@ -32,7 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.thatwaz.raterwise.data.model.TimeEntry
+import com.thatwaz.raterwise.data.model.TaskTimeEntry
 import com.thatwaz.raterwise.ui.viewmodel.TimeCardViewModel
 
 
@@ -120,7 +120,7 @@ fun DailyTimeEntriesScreen(date: String, navController: NavController, viewModel
     }
 }
 @Composable
-fun TimeEntryItem(entry: TimeEntry, onCheckChanged: ((TimeEntry) -> Unit)?) {
+fun TimeEntryItem(entry: TaskTimeEntry, onCheckChanged: ((TaskTimeEntry) -> Unit)?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

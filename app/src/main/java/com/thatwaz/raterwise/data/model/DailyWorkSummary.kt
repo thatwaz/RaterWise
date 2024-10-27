@@ -15,7 +15,7 @@ data class DailyWorkSummary(
     val date: String,
     val timeWorked: Long, // Time worked in minutes
     val isSubmitted: Boolean,
-    val entries: List<TimeEntry> = emptyList(), // Entries for that day
+    val entries: List<TaskTimeEntry> = emptyList(), // Entries for that day
     val totalEarnings: Double = 0.0 // Earnings calculated based on hourly wage
 )
 

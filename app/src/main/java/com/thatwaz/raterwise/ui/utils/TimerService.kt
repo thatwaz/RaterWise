@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +76,7 @@ class TimerService : Service() {
                 delay(1000L) // Update task timer every second
                 taskSeconds++
                 timerCallback?.onTaskTimeUpdate(taskSeconds) // Notify callback
+                Log.i("DOH","Timer service seconds are $taskSeconds")
             }
         }
     }

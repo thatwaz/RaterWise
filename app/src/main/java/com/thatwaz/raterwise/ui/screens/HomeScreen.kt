@@ -41,10 +41,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -55,7 +51,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -70,11 +65,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.thatwaz.raterwise.data.model.TimeEntry
+import com.thatwaz.raterwise.data.model.TaskTimeEntry
 import com.thatwaz.raterwise.ui.utils.TimerService
 import com.thatwaz.raterwise.ui.viewmodel.TimeCardViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,7 +86,7 @@ fun HomeScreen(
     // Restore state when the Composable is launched
     LaunchedEffect(Unit) {
         Log.d("HomeScreen", "LaunchedEffect triggered, calling restoreSessionState")
-        viewModel.restoreSessionState(context)
+//        viewModel.restoreSessionState(context)
     }
 
     // Local variable for TimerService reference
@@ -146,7 +140,7 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            TaskControlsCard(viewModel, isClockedIn, context)
+            TimeClockControlsCard(viewModel, isClockedIn, context)
             TaskTimerControlsCard(viewModel, isClockedIn, context)
 
             Card(
@@ -198,13 +192,12 @@ fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean, co
 
             // Task Timer Controls
             TaskTimerControls(
-                viewModel = viewModel, // Pass the viewModel directly
+                viewModel = viewModel,
                 isClockedIn = isClockedIn,
                 maxTaskTime = maxTaskTime,
-                onTaskStart = {
-                    // No need to call startTask again here, since it's already started via QuickTaskButtons
-                },
+//                onTaskStart = { /* No direct call to startTask here */ },
                 onTaskFinish = {
+                    Log.d("Composable", "onTaskFinish invoked.")
                     viewModel.completeTask(context)
                     viewModel.stopForegroundService(context)
                 },
@@ -213,6 +206,52 @@ fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean, co
         }
     }
 }
+
+
+//@RequiresApi(Build.VERSION_CODES.O)
+//@Composable
+//fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean, context: Context) {
+//    var maxTaskTime by remember { mutableStateOf("") }
+//
+//    // State to track the selected task time button
+//    var selectedMinute by remember { mutableStateOf<Int?>(null) }
+//
+//    Card(
+//        modifier = Modifier.fillMaxWidth(),
+//        elevation = CardDefaults.cardElevation(8.dp)
+//    ) {
+//        Column(
+//            modifier = Modifier.padding(16.dp),
+//            verticalArrangement = Arrangement.spacedBy(8.dp)
+//        ) {
+//            // Quick Task Start Buttons (1-12 minutes)
+//            QuickTaskButtons(
+//                onSelect = { selectedMinutes ->
+//                    maxTaskTime = selectedMinutes.toString()
+//                    viewModel.updateMaxTaskTime(maxTaskTime) // Call viewModel method
+//                    viewModel.startTask(context) // Start task and service once
+//                },
+//                selectedMinute = selectedMinute,
+//                setSelectedMinute = { selectedMinute = it },
+//                viewModel = viewModel // Pass the viewModel
+//            )
+//
+//            // Task Timer Controls
+//            TaskTimerControls(
+//                viewModel = viewModel,
+//                isClockedIn = isClockedIn,
+//                maxTaskTime = maxTaskTime,
+//                onTaskStart = { viewModel.startTask(context) },
+//                onTaskFinish = {
+//                    Log.d("Composable", "onTaskFinish invoked.")
+//                    viewModel.completeTask(context)
+//                    viewModel.stopForegroundService(context)
+//                },
+//                contentModifier = Modifier.padding(16.dp)
+//            )
+//        }
+//    }
+//}
 
 
 
@@ -300,7 +339,7 @@ fun TaskButton(minute: Int, isSelected: Boolean, onSelect: () -> Unit) {
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun TaskControlsCard(
+fun TimeClockControlsCard(
     viewModel: TimeCardViewModel,
     isClockedIn: Boolean,
     context: Context
@@ -345,7 +384,7 @@ fun TaskControlsCard(
 
 
 @Composable
-fun CompletedTasksList(taskList: List<TimeEntry>) {
+fun CompletedTasksList(taskList: List<TaskTimeEntry>) {
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
@@ -353,7 +392,7 @@ fun CompletedTasksList(taskList: List<TimeEntry>) {
             .padding(16.dp) // Padding inside the card
     ) {
         items(taskList) { task ->
-            CompletedTaskItem(task)
+//            CompletedTaskItem(task)
         }
     }
 }
@@ -409,8 +448,6 @@ fun MaxTaskTimeInput(
     }
 }
 
-
-
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -418,16 +455,12 @@ fun TaskTimerControls(
     viewModel: TimeCardViewModel,
     isClockedIn: Boolean,
     maxTaskTime: String,
-    onTaskStart: () -> Unit,
     onTaskFinish: () -> Unit,
     contentModifier: Modifier
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var progress by remember { mutableStateOf(0f) }
     var taskTimerColor by remember { mutableStateOf(Color.Green) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val keyboardController = LocalSoftwareKeyboardController.current
     var countdownSeconds by remember { mutableStateOf(0L) }
     var showCountdown by remember { mutableStateOf(false) }
 
@@ -437,28 +470,27 @@ fun TaskTimerControls(
     // Ensure timer and progress are maintained across recompositions
     LaunchedEffect(isTaskRunning) {
         if (isTaskRunning) {
-            scope.launch {
-                while (viewModel.isTaskRunning) {
-                    delay(1000L)
-                    viewModel.updateTaskSeconds(viewModel.taskSeconds + 1)
-                    val maxTime = maxTaskTime.toLongOrNull() ?: 0L
-                    progress = if (maxTime > 0) taskSeconds.toFloat() / (maxTime * 60) else 0f
+            while (isTaskRunning) {
+                delay(1000L)
+                viewModel.updateTaskSeconds(viewModel.taskSeconds + 1)
 
-                    // Update taskTimerColor and countdown logic
-                    when {
-                        progress >= 1f -> {
-                            taskTimerColor = Color.Red
-                            showCountdown = false
-                        }
-                        progress >= 0.8f -> {
-                            taskTimerColor = Color.Yellow
-                            showCountdown = true
-                            countdownSeconds = (maxTime * 60) - taskSeconds
-                        }
-                        else -> {
-                            taskTimerColor = Color.Green
-                            showCountdown = false
-                        }
+                val maxTime = maxTaskTime.toLongOrNull() ?: 0L
+                progress = if (maxTime > 0) taskSeconds.toFloat() / (maxTime * 60) else 0f
+
+                // Update taskTimerColor and countdown logic
+                when {
+                    progress >= 1f -> {
+                        taskTimerColor = Color.Red
+                        showCountdown = false
+                    }
+                    progress >= 0.8f -> {
+                        taskTimerColor = Color.Yellow
+                        showCountdown = true
+                        countdownSeconds = (maxTime * 60) - taskSeconds
+                    }
+                    else -> {
+                        taskTimerColor = Color.Green
+                        showCountdown = false
                     }
                 }
             }
@@ -477,18 +509,6 @@ fun TaskTimerControls(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-//            Button(
-//                onClick = {
-//                    keyboardController?.hide()
-//                    viewModel.startTask()
-//                    onTaskStart()
-//                },
-//                modifier = Modifier.fillMaxWidth(),
-//                enabled = isClockedIn && maxTaskTime.isNotBlank() && !isTaskRunning
-//            ) {
-//                Text(text = "Start Task")
-//            }
-
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -537,19 +557,9 @@ fun TaskTimerControls(
 
             Button(
                 onClick = {
+                    // Stop the task and finish in the ViewModel
                     viewModel.stopTask(context)
-                    scope.launch {
-                        val result = snackbarHostState.showSnackbar(
-                            message = "Task time recorded: ${String.format("%02d:%02d", taskSeconds / 60, taskSeconds % 60)}",
-                            actionLabel = "Undo",
-                            duration = SnackbarDuration.Short
-                        )
-                        if (result == SnackbarResult.ActionPerformed) {
-//                            viewModel.startTask(context)
-                        } else {
-                            onTaskFinish()
-                        }
-                    }
+                    onTaskFinish()
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = isClockedIn && isTaskRunning
@@ -557,45 +567,172 @@ fun TaskTimerControls(
                 Text(text = "Finish Task")
             }
         }
-
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
-        )
     }
 }
 
 
+//@RequiresApi(Build.VERSION_CODES.O)
+//@OptIn(ExperimentalComposeUiApi::class)
+//@Composable
+//fun TaskTimerControls(
+//    viewModel: TimeCardViewModel,
+//    isClockedIn: Boolean,
+//    maxTaskTime: String,
+//    onTaskStart: () -> Unit,
+//    onTaskFinish: () -> Unit,
+//    contentModifier: Modifier
+//) {
+//    val context = LocalContext.current
+//    val scope = rememberCoroutineScope()
+//    var progress by remember { mutableStateOf(0f) }
+//    var taskTimerColor by remember { mutableStateOf(Color.Green) }
+//    val snackbarHostState = remember { SnackbarHostState() }
+//    val keyboardController = LocalSoftwareKeyboardController.current
+//    var countdownSeconds by remember { mutableStateOf(0L) }
+//    var showCountdown by remember { mutableStateOf(false) }
+//
+//    val taskSeconds = viewModel.taskSeconds
+//    val isTaskRunning = viewModel.isTaskRunning
+//
+//    // Ensure timer and progress are maintained across recompositions
+//    LaunchedEffect(isTaskRunning) {
+//        if (isTaskRunning) {
+//            scope.launch {
+//                while (viewModel.isTaskRunning) {
+//                    delay(1000L)
+//                    viewModel.updateTaskSeconds(viewModel.taskSeconds + 1)
+//                    val maxTime = maxTaskTime.toLongOrNull() ?: 0L
+//                    progress = if (maxTime > 0) taskSeconds.toFloat() / (maxTime * 60) else 0f
+//
+//                    // Update taskTimerColor and countdown logic
+//                    when {
+//                        progress >= 1f -> {
+//                            taskTimerColor = Color.Red
+//                            showCountdown = false
+//                        }
+//
+//                        progress >= 0.8f -> {
+//                            taskTimerColor = Color.Yellow
+//                            showCountdown = true
+//                            countdownSeconds = (maxTime * 60) - taskSeconds
+//                        }
+//
+//                        else -> {
+//                            taskTimerColor = Color.Green
+//                            showCountdown = false
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//
+//    Box(
+//        modifier = Modifier
+//            .fillMaxSize()
+//            .then(contentModifier)
+//    ) {
+//        Column(
+//            modifier = Modifier
+//                .fillMaxSize()
+//                .padding(16.dp),
+//            verticalArrangement = Arrangement.spacedBy(16.dp),
+//            horizontalAlignment = Alignment.CenterHorizontally
+//        ) {
+//
+//            Row(
+//                verticalAlignment = Alignment.CenterVertically,
+//                horizontalArrangement = Arrangement.Center,
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(8.dp)
+//            ) {
+//                Box(
+//                    contentAlignment = Alignment.Center,
+//                    modifier = Modifier.weight(1f)
+//                ) {
+//                    CircularProgressIndicator(
+//                        progress = progress.coerceIn(0f, 1f),
+//                        color = taskTimerColor,
+//                        strokeWidth = 8.dp,
+//                        modifier = Modifier.size(100.dp)
+//                    )
+//                    Text(
+//                        text = String.format("%02d:%02d", taskSeconds / 60, taskSeconds % 60),
+//                        style = MaterialTheme.typography.bodyMedium.copy(color = Color.White)
+//                    )
+//                }
+//
+//                Text(
+//                    text = String.format("%02d:%02d", taskSeconds / 60, taskSeconds % 60),
+//                    style = MaterialTheme.typography.bodyMedium.copy(
+//                        color = Color.Black,
+//                        fontWeight = FontWeight.Bold
+//                    ),
+//                    modifier = Modifier
+//                        .padding(start = 16.dp)
+//                        .weight(1f)
+//                )
+//            }
+//
+//            if (showCountdown) {
+//                Text(
+//                    text = "Warning: ${countdownSeconds}s left",
+//                    style = MaterialTheme.typography.bodyLarge.copy(
+//                        color = Color.Red,
+//                        fontWeight = FontWeight.Bold
+//                    ),
+//                    modifier = Modifier.padding(top = 8.dp)
+//                )
+//            }
+//
+//            Button(
+//                onClick = {
+//                    // Stop the task when the button is clicked
+//                    viewModel.stopTask(context)
+//
+//                    // Invoke the onTaskFinish callback directly after stopping the task
+//                    onTaskFinish()
+//                },
+//                modifier = Modifier.fillMaxWidth(),
+//                enabled = isClockedIn && isTaskRunning
+//            ) {
+//                Text(text = "Finish Task")
+//            }
+//        }
 
 
 
 
-// TEMP CODE for display
-@Composable
-fun CompletedTaskItem(task: TimeEntry) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = "Start: ${task.startTime}", style = MaterialTheme.typography.bodyMedium)
-        Text(text = "End: ${task.endTime}", style = MaterialTheme.typography.bodyMedium)
-        Text(text = "Duration: ${task.duration} min", style = MaterialTheme.typography.bodyMedium)
-        Text(
-            text = "Expected: ${task.expectedDuration} min",
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Text(
-            text = "Status: ${if (task.isOverUnderAET) "Over/Under AET" else "Within AET"}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (task.isOverUnderAET) Color.Red else Color.Green // Color coding for AET status
-        )
-    }
-}
+
+        // TEMP CODE for display
+        @Composable
+        fun CompletedTaskItem(task: TaskTimeEntry) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Start: ${task.startTime}", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "End: ${task.endTime}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "Duration: ${task.duration} min",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Expected: ${task.expectedDuration} min",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Status: ${if (task.isOverUnderAET) "Over/Under AET" else "Within AET"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (task.isOverUnderAET) Color.Red else Color.Green // Color coding for AET status
+                )
+            }
+        }
+
+
 
 
 
