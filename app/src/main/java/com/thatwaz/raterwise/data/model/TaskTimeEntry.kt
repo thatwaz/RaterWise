@@ -7,12 +7,12 @@ data class TaskTimeEntry(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val startTime: String,
     val endTime: String,
-    val duration: Int, // Duration in minutes
+    val duration: Long, // Duration in seconds
     val date: String, // Date for the task entry
     val isSubmitted: Boolean,
-    val expectedDuration: Int, // Expected duration (AET)
+    val expectedDuration: Int, // Expected duration in minutes
     val isOverUnderAET: Boolean, // Over or under AET indicator
-    val minutesOverUnderAET: Int, // Track the over/under AET duration
+    val secondsOverUnderAET: Long, // Track the over/under AET duration in seconds
     val isTaskRunning: Boolean = false // Indicates if a task is running
 )
 

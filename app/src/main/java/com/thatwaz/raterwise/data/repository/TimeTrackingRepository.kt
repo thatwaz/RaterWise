@@ -35,7 +35,8 @@ interface TimeTrackingRepository {
     suspend fun getActiveTask(): TaskTimeEntry? // Define the function to fetch the active task
 
     // Utility methods
-    fun calculateOverUnderAET(duration: Int, expectedDuration: Int): Int
+    fun calculateOverUnderAET(duration: Long, expectedDuration: Int): Long
+
 }
 
 //interface TimeTrackingRepository {

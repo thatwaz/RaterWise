@@ -115,9 +115,11 @@ class TimeTrackingRepositoryImpl @Inject constructor(
         sessionDao.clearSession()
     }
 
-    override fun calculateOverUnderAET(duration: Int, expectedDuration: Int): Int {
-        return duration - expectedDuration
+    override fun calculateOverUnderAET(duration: Long, expectedDuration: Int): Long {
+        val expectedDurationInSeconds = expectedDuration * 60L // Convert expected duration from minutes to seconds
+        return duration - expectedDurationInSeconds
     }
+
 
     override suspend fun getActiveTask(): TaskTimeEntry? {
         // Directly return the active task from the DAO

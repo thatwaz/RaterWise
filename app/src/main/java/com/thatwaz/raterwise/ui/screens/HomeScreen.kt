@@ -199,7 +199,7 @@ fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean, co
                 onTaskFinish = {
                     Log.d("Composable", "onTaskFinish invoked.")
                     viewModel.completeTask(context)
-                    viewModel.stopForegroundService(context)
+//                    viewModel.stopForegroundService(context)
                 },
                 contentModifier = Modifier.padding(16.dp)
             )
@@ -558,7 +558,8 @@ fun TaskTimerControls(
             Button(
                 onClick = {
                     // Stop the task and finish in the ViewModel
-                    viewModel.stopTask(context)
+                    viewModel.completeTask(context)
+//                    viewModel.stopTask(context)
                     onTaskFinish()
                 },
                 modifier = Modifier.fillMaxWidth(),

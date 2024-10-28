@@ -17,7 +17,7 @@ import com.thatwaz.raterwise.data.model.WorkPeriod
 
 @Database(
     entities = [TaskTimeEntry::class, DailyWorkSummary::class, WorkPeriod::class, Session::class],
-    version = 6,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(Converters::class) // Use the Converters class for handling complex types

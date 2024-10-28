@@ -1,6 +1,8 @@
 package com.thatwaz.raterwise.ui.screens
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,11 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -36,13 +36,13 @@ import com.thatwaz.raterwise.data.model.TaskTimeEntry
 import com.thatwaz.raterwise.ui.viewmodel.TimeCardViewModel
 
 
-
-
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailyTimeEntriesScreen(date: String, navController: NavController, viewModel: TimeCardViewModel = hiltViewModel()) {
     val timeEntriesByDay by viewModel.timeEntriesByDay.collectAsState()
     val entries = timeEntriesByDay[date] ?: emptyList()
+
 
     // Separate the entries into unsubmitted and submitted categories
     val unsubmittedEntries = entries.filter { !it.isSubmitted }
@@ -119,8 +119,21 @@ fun DailyTimeEntriesScreen(date: String, navController: NavController, viewModel
         }
     }
 }
+
 @Composable
 fun TimeEntryItem(entry: TaskTimeEntry, onCheckChanged: ((TaskTimeEntry) -> Unit)?) {
+    // Calculate hours and minutes from the duration in seconds
+    val hours = entry.duration / 3600
+    val minutes = (entry.duration % 3600) / 60
+
+    val durationText = when {
+        hours > 0 -> "$hours hr ${minutes} min" // Display in hours and minutes if hours are present
+        else -> "$minutes min" // Display only minutes if hours are zero
+    }
+
+    // Remember the checkbox state and synchronize it with the entry state
+    val isChecked = rememberUpdatedState(entry.isSubmitted)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -129,27 +142,74 @@ fun TimeEntryItem(entry: TaskTimeEntry, onCheckChanged: ((TaskTimeEntry) -> Unit
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = "${entry.startTime} - ${entry.endTime} (${entry.duration} mins)", style = MaterialTheme.typography.bodyMedium)
-        }
-
-        // Use a local state to track the checkbox state visually
-        val checkedState = remember { mutableStateOf(entry.isSubmitted) }
-
-        // Sync the state with the latest value from the entry whenever it changes
-        LaunchedEffect(entry.isSubmitted) {
-            checkedState.value = entry.isSubmitted
+            Text(
+                text = "${entry.startTime} - ${entry.endTime} ($durationText)",
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
 
         Checkbox(
-            checked = checkedState.value,
-            onCheckedChange = { isChecked ->
-                checkedState.value = isChecked // Update the local state for immediate UI feedback
-                onCheckChanged?.invoke(entry.copy(isSubmitted = isChecked)) // Invoke callback to update state in ViewModel
+            checked = isChecked.value,
+            onCheckedChange = { isCheckedNow ->
+                // Invoke callback to update state only if onCheckChanged is not null
+                onCheckChanged?.let {
+                    if (entry.isSubmitted != isCheckedNow) {
+                        it(entry.copy(isSubmitted = isCheckedNow))
+                    }
+                }
             },
             enabled = onCheckChanged != null
         )
     }
 }
+
+
+
+
+//@Composable
+//fun TimeEntryItem(entry: TaskTimeEntry, onCheckChanged: ((TaskTimeEntry) -> Unit)?) {
+//    // Calculate hours and minutes from the duration in seconds
+//    val hours = entry.duration / 3600
+//    val minutes = (entry.duration % 3600) / 60
+//
+//    val durationText = when {
+//        hours > 0 -> "$hours hr ${minutes} min" // Display in hours and minutes if hours are present
+//        else -> "$minutes min" // Display only minutes if hours are zero
+//    }
+//
+//    Row(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(8.dp),
+//        verticalAlignment = Alignment.CenterVertically,
+//        horizontalArrangement = Arrangement.SpaceBetween
+//    ) {
+//        Column(modifier = Modifier.weight(1f)) {
+//            Text(
+//                text = "${entry.startTime} - ${entry.endTime} ($durationText)",
+//                style = MaterialTheme.typography.bodyMedium
+//            )
+//        }
+//
+//        // Use a local state to track the checkbox state visually
+//        val checkedState = remember { mutableStateOf(entry.isSubmitted) }
+//
+//        // Sync the state with the latest value from the entry whenever it changes
+//        LaunchedEffect(entry.isSubmitted) {
+//            checkedState.value = entry.isSubmitted
+//        }
+//
+//        Checkbox(
+//            checked = checkedState.value,
+//            onCheckedChange = { isChecked ->
+//                checkedState.value = isChecked // Update the local state for immediate UI feedback
+//                onCheckChanged?.invoke(entry.copy(isSubmitted = isChecked)) // Invoke callback to update state in ViewModel
+//            },
+//            enabled = onCheckChanged != null
+//        )
+//    }
+//}
+
 
 
 

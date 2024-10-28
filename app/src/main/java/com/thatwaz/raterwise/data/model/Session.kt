@@ -7,9 +7,11 @@ data class Session(
     @PrimaryKey val id: Int = 1, // Only one active session
     val clockInTime: String,
     val isClockedIn: Boolean,
-    val totalWorkTime: Long = 0L, // Total time worked in current session
-    val taskStartTime: String? = null // Track task start time, if applicable
+    val totalWorkTime: Long = 0L,
+    val numberOfTasks: Int = 0, // New field to store the number of tasks
+    val totalOverUnderAET: Int = 0 // New field to store the sum of over/under AET for all tasks
 )
+
 
 
 

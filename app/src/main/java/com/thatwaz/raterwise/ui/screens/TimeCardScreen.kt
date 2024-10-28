@@ -33,11 +33,40 @@ fun TimeCardScreen(navController: NavController, viewModel: TimeCardViewModel = 
     val timeEntriesByDay by viewModel.timeEntriesByDay.collectAsState()
     Log.d("TimeCardScreen", "Time entries by day: $timeEntriesByDay") // Add this to debug
 
+    // Calculate weekly totals
+    val allEntries = timeEntriesByDay.values.flatten()
+    val totalSecondsForWeek = allEntries.sumOf { it.duration }
+    val numberOfTasksForWeek = allEntries.size
+    val totalOverUnderAETForWeek = allEntries.sumOf { it.secondsOverUnderAET }
+
+    // Create formatted text for weekly totals
+    val hoursForWeek = totalSecondsForWeek / 3600
+    val minutesForWeek = (totalSecondsForWeek % 3600) / 60
+    val weeklyDurationText = when {
+        hoursForWeek > 0 -> "$hoursForWeek hr ${minutesForWeek} min"
+        else -> "$minutesForWeek min"
+    }
+
+    val weeklyOverUnderText = if (totalOverUnderAETForWeek >= 0) {
+        "+${totalOverUnderAETForWeek / 60} min" // Display in minutes
+    } else {
+        "${totalOverUnderAETForWeek / 60} min"
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        // Add the weekly summary card at the top
+        item {
+            WeeklySummaryCard(
+                totalDurationText = weeklyDurationText,
+                numberOfTasks = numberOfTasksForWeek,
+                totalOverUnderText = weeklyOverUnderText
+            )
+        }
+
         if (timeEntriesByDay.isEmpty()) {
             item {
                 Text("No entries found", modifier = Modifier.padding(16.dp))
@@ -58,10 +87,36 @@ fun TimeCardScreen(navController: NavController, viewModel: TimeCardViewModel = 
 }
 
 @Composable
+fun WeeklySummaryCard(totalDurationText: String, numberOfTasks: Int, totalOverUnderText: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        elevation = CardDefaults.cardElevation(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Total Hours Worked This Week: $totalDurationText", style = MaterialTheme.typography.titleMedium)
+            Text("Number of Tasks: $numberOfTasks", style = MaterialTheme.typography.bodyMedium)
+            Text("Over/Under AET: $totalOverUnderText", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
 fun DateCard(date: String, timeEntries: List<TaskTimeEntry>, onClick: () -> Unit) {
-    val totalMinutes = timeEntries.sumOf { it.duration }
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
+    // Calculate the total duration in seconds
+    val totalSeconds = timeEntries.sumOf { it.duration }
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+
+    // Create a formatted duration text
+    val durationText = when {
+        hours > 0 -> "$hours hr ${minutes} min"
+        else -> "$minutes min"
+    }
 
     Card(
         modifier = Modifier
@@ -75,10 +130,73 @@ fun DateCard(date: String, timeEntries: List<TaskTimeEntry>, onClick: () -> Unit
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("Date: $date", style = MaterialTheme.typography.titleMedium)
-            Text("Total Time: $hours hours $minutes minutes", style = MaterialTheme.typography.bodyMedium)
+            Text("Total Time: $durationText", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
+
+
+
+//@RequiresApi(Build.VERSION_CODES.O)
+//@Composable
+//fun TimeCardScreen(navController: NavController, viewModel: TimeCardViewModel = hiltViewModel()) {
+//    val timeEntriesByDay by viewModel.timeEntriesByDay.collectAsState()
+//    Log.d("TimeCardScreen", "Time entries by day: $timeEntriesByDay") // Add this to debug
+//
+//    LazyColumn(
+//        modifier = Modifier
+//            .fillMaxSize()
+//            .padding(16.dp)
+//    ) {
+//        if (timeEntriesByDay.isEmpty()) {
+//            item {
+//                Text("No entries found", modifier = Modifier.padding(16.dp))
+//            }
+//        } else {
+//            items(timeEntriesByDay.entries.toList()) { (date, entries) ->
+//                DateCard(
+//                    date = date.ifEmpty { viewModel.getCurrentDateFormatted() },
+//                    timeEntries = entries,
+//                    onClick = {
+//                        val targetDate = date.ifEmpty { viewModel.getCurrentDateFormatted() }
+//                        navController.navigate("daily_entries/$targetDate")
+//                    }
+//                )
+//            }
+//        }
+//    }
+//}
+//
+//@Composable
+//fun DateCard(date: String, timeEntries: List<TaskTimeEntry>, onClick: () -> Unit) {
+//    // Calculate the total duration in seconds
+//    val totalSeconds = timeEntries.sumOf { it.duration }
+//    val hours = totalSeconds / 3600
+//    val minutes = (totalSeconds % 3600) / 60
+//
+//    // Create a formatted duration text
+//    val durationText = when {
+//        hours > 0 -> "$hours hr ${minutes} min"
+//        else -> "$minutes min"
+//    }
+//
+//    Card(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(8.dp)
+//            .clickable { onClick() }, // Make the card clickable
+//        elevation = CardDefaults.cardElevation(8.dp)
+//    ) {
+//        Column(
+//            modifier = Modifier.padding(16.dp),
+//            verticalArrangement = Arrangement.spacedBy(8.dp)
+//        ) {
+//            Text("Date: $date", style = MaterialTheme.typography.titleMedium)
+//            Text("Total Time: $durationText", style = MaterialTheme.typography.bodyMedium)
+//        }
+//    }
+//}
+
 
 
 //@Composable
