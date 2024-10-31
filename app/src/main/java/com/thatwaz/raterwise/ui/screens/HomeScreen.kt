@@ -65,7 +65,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.thatwaz.raterwise.data.model.TaskTimeEntry
+import com.thatwaz.raterwise.data.model.Session
 import com.thatwaz.raterwise.ui.utils.TimerService
 import com.thatwaz.raterwise.ui.viewmodel.TimeCardViewModel
 import kotlinx.coroutines.delay
@@ -384,7 +384,7 @@ fun TimeClockControlsCard(
 
 
 @Composable
-fun CompletedTasksList(taskList: List<TaskTimeEntry>) {
+fun CompletedTasksList(taskList: List<Session>) {
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
@@ -707,31 +707,31 @@ fun TaskTimerControls(
 
 
         // TEMP CODE for display
-        @Composable
-        fun CompletedTaskItem(task: TaskTimeEntry) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Start: ${task.startTime}", style = MaterialTheme.typography.bodyMedium)
-                Text(text = "End: ${task.endTime}", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = "Duration: ${task.duration} min",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = "Expected: ${task.expectedDuration} min",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = "Status: ${if (task.isOverUnderAET) "Over/Under AET" else "Within AET"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (task.isOverUnderAET) Color.Red else Color.Green // Color coding for AET status
-                )
-            }
-        }
+//        @Composable
+//        fun CompletedTaskItem(task: TaskTimeEntry) {
+//            Row(
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(8.dp),
+//                horizontalArrangement = Arrangement.SpaceBetween
+//            ) {
+//                Text(text = "Start: ${task.startTime}", style = MaterialTheme.typography.bodyMedium)
+//                Text(text = "End: ${task.endTime}", style = MaterialTheme.typography.bodyMedium)
+//                Text(
+//                    text = "Duration: ${task.duration} min",
+//                    style = MaterialTheme.typography.bodyMedium
+//                )
+//                Text(
+//                    text = "Expected: ${task.expectedDuration} min",
+//                    style = MaterialTheme.typography.bodyMedium
+//                )
+//                Text(
+//                    text = "Status: ${if (task.isOverUnderAET) "Over/Under AET" else "Within AET"}",
+//                    style = MaterialTheme.typography.bodyMedium,
+//                    color = if (task.isOverUnderAET) Color.Red else Color.Green // Color coding for AET status
+//                )
+//            }
+//        }
 
 
 

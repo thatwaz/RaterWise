@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.thatwaz.raterwise.data.model.TaskTimeEntry
+import com.thatwaz.raterwise.data.model.Session
 import com.thatwaz.raterwise.ui.viewmodel.TimeCardViewModel
 
 
@@ -35,9 +35,11 @@ fun TimeCardScreen(navController: NavController, viewModel: TimeCardViewModel = 
 
     // Calculate weekly totals
     val allEntries = timeEntriesByDay.values.flatten()
-    val totalSecondsForWeek = allEntries.sumOf { it.duration }
-    val numberOfTasksForWeek = allEntries.size
-    val totalOverUnderAETForWeek = allEntries.sumOf { it.secondsOverUnderAET }
+    val totalSecondsForWeek = allEntries.sumOf { it.totalWorkTime }
+//    val numberOfTasksForWeek = allEntries.size
+    val numberOfTasksForWeek = allEntries.sumOf { it.numberOfTasks }
+
+    val totalOverUnderAETForWeek = allEntries.sumOf { it.totalOverUnderAET }
 
     // Create formatted text for weekly totals
     val hoursForWeek = totalSecondsForWeek / 3600
@@ -72,10 +74,10 @@ fun TimeCardScreen(navController: NavController, viewModel: TimeCardViewModel = 
                 Text("No entries found", modifier = Modifier.padding(16.dp))
             }
         } else {
-            items(timeEntriesByDay.entries.toList()) { (date, entries) ->
+            items(timeEntriesByDay.entries.toList()) { (date, sessions) ->
                 DateCard(
                     date = date.ifEmpty { viewModel.getCurrentDateFormatted() },
-                    timeEntries = entries,
+                    sessions = sessions, // Pass the list of sessions to DateCard
                     onClick = {
                         val targetDate = date.ifEmpty { viewModel.getCurrentDateFormatted() }
                         navController.navigate("daily_entries/$targetDate")
@@ -85,6 +87,7 @@ fun TimeCardScreen(navController: NavController, viewModel: TimeCardViewModel = 
         }
     }
 }
+
 
 @Composable
 fun WeeklySummaryCard(totalDurationText: String, numberOfTasks: Int, totalOverUnderText: String) {
@@ -106,9 +109,9 @@ fun WeeklySummaryCard(totalDurationText: String, numberOfTasks: Int, totalOverUn
 }
 
 @Composable
-fun DateCard(date: String, timeEntries: List<TaskTimeEntry>, onClick: () -> Unit) {
-    // Calculate the total duration in seconds
-    val totalSeconds = timeEntries.sumOf { it.duration }
+fun DateCard(date: String, sessions: List<Session>, onClick: () -> Unit) {
+    // Calculate the total duration and other aggregated information from sessions
+    val totalSeconds = sessions.sumOf { it.totalWorkTime }
     val hours = totalSeconds / 3600
     val minutes = (totalSeconds % 3600) / 60
 
@@ -131,9 +134,11 @@ fun DateCard(date: String, timeEntries: List<TaskTimeEntry>, onClick: () -> Unit
         ) {
             Text("Date: $date", style = MaterialTheme.typography.titleMedium)
             Text("Total Time: $durationText", style = MaterialTheme.typography.bodyMedium)
+            Text("Number of Sessions: ${sessions.size}", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
+
 
 
 

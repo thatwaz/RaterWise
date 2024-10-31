@@ -32,26 +32,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.thatwaz.raterwise.data.model.TaskTimeEntry
+import com.thatwaz.raterwise.data.model.Session
 import com.thatwaz.raterwise.ui.viewmodel.TimeCardViewModel
-
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DailyTimeEntriesScreen(date: String, navController: NavController, viewModel: TimeCardViewModel = hiltViewModel()) {
+fun DailyTimeEntriesScreen(
+    date: String,
+    navController: NavController,
+    viewModel: TimeCardViewModel = hiltViewModel()
+) {
     val timeEntriesByDay by viewModel.timeEntriesByDay.collectAsState()
-    val entries = timeEntriesByDay[date] ?: emptyList()
+    val sessions = timeEntriesByDay[date] ?: emptyList()
 
-
-    // Separate the entries into unsubmitted and submitted categories
-    val unsubmittedEntries = entries.filter { !it.isSubmitted }
-    val submittedEntries = entries.filter { it.isSubmitted }
+    val unsubmittedSessions = sessions.filter { !it.isSubmitted }
+    val submittedSessions = sessions.filter { it.isSubmitted }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "Time Entries for $date", style = MaterialTheme.typography.titleMedium) },
+                title = { Text(text = "Sessions for $date", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -67,51 +68,48 @@ fun DailyTimeEntriesScreen(date: String, navController: NavController, viewModel
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // Add the temporary delete button here
             Button(
-                onClick = { viewModel.deleteAllEntries() },
+                onClick = { viewModel.deleteAllSessions() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp)
             ) {
-                Text("Delete All Entries (Temp Button)")
+                Text("Delete All Sessions (Temp Button)")
             }
 
             LazyColumn {
-                // Display Unsubmitted Entries First
                 item {
                     Text(
-                        text = "Unsubmitted Entries",
+                        text = "Unsubmitted Sessions",
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 }
 
-                items(unsubmittedEntries) { entry ->
-                    TimeEntryItem(
-                        entry = entry,
-                        onCheckChanged = { updatedEntry ->
-                            Log.d("TimeEntryToggle", "Toggling entry: $updatedEntry")
-                            viewModel.toggleTimeEntrySubmission(updatedEntry) // Toggle submission state
+                items(unsubmittedSessions) { session ->
+                    SessionItem(
+                        session = session,
+                        onCheckChanged = { updatedSession ->
+                            Log.d("SessionToggle", "Toggling session: $updatedSession")
+                            viewModel.toggleSessionSubmission(updatedSession)
                         }
                     )
                 }
 
-                // Display Submitted Entries Below
                 item {
                     Text(
-                        text = "Submitted Entries",
+                        text = "Submitted Sessions",
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 }
 
-                items(submittedEntries) { entry ->
-                    TimeEntryItem(
-                        entry = entry,
-                        onCheckChanged = { updatedEntry ->
-                            Log.d("TimeEntryToggle", "Toggling entry: $updatedEntry")
-                            viewModel.toggleTimeEntrySubmission(updatedEntry) // Toggle submission state
+                items(submittedSessions) { session ->
+                    SessionItem(
+                        session = session,
+                        onCheckChanged = { updatedSession ->
+                            Log.d("SessionToggle", "Toggling session: $updatedSession")
+                            viewModel.toggleSessionSubmission(updatedSession)
                         }
                     )
                 }
@@ -121,18 +119,8 @@ fun DailyTimeEntriesScreen(date: String, navController: NavController, viewModel
 }
 
 @Composable
-fun TimeEntryItem(entry: TaskTimeEntry, onCheckChanged: ((TaskTimeEntry) -> Unit)?) {
-    // Calculate hours and minutes from the duration in seconds
-    val hours = entry.duration / 3600
-    val minutes = (entry.duration % 3600) / 60
-
-    val durationText = when {
-        hours > 0 -> "$hours hr ${minutes} min" // Display in hours and minutes if hours are present
-        else -> "$minutes min" // Display only minutes if hours are zero
-    }
-
-    // Remember the checkbox state and synchronize it with the entry state
-    val isChecked = rememberUpdatedState(entry.isSubmitted)
+fun SessionItem(session: Session, onCheckChanged: ((Session) -> Unit)?) {
+    val isCheckedState = rememberUpdatedState(session.isSubmitted)
 
     Row(
         modifier = Modifier
@@ -142,20 +130,22 @@ fun TimeEntryItem(entry: TaskTimeEntry, onCheckChanged: ((TaskTimeEntry) -> Unit
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
+            // Display session start and end times
             Text(
-                text = "${entry.startTime} - ${entry.endTime} ($durationText)",
+                text = "Start: ${session.clockInTime} - End: ${session.clockOutTime}",
                 style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = if (session.isSubmitted) "Status: Submitted" else "Status: Not Submitted",
+                style = MaterialTheme.typography.bodySmall
             )
         }
 
         Checkbox(
-            checked = isChecked.value,
+            checked = isCheckedState.value,
             onCheckedChange = { isCheckedNow ->
-                // Invoke callback to update state only if onCheckChanged is not null
-                onCheckChanged?.let {
-                    if (entry.isSubmitted != isCheckedNow) {
-                        it(entry.copy(isSubmitted = isCheckedNow))
-                    }
+                if (session.isSubmitted != isCheckedNow) {
+                    onCheckChanged?.invoke(session.copy(isSubmitted = isCheckedNow))
                 }
             },
             enabled = onCheckChanged != null
@@ -163,6 +153,408 @@ fun TimeEntryItem(entry: TaskTimeEntry, onCheckChanged: ((TaskTimeEntry) -> Unit
     }
 }
 
+//@RequiresApi(Build.VERSION_CODES.O)
+//@OptIn(ExperimentalMaterial3Api::class)
+//@Composable
+//fun DailyTimeEntriesScreen(
+//    date: String,
+//    navController: NavController,
+//    viewModel: TimeCardViewModel = hiltViewModel()
+//) {
+//    // Get the sessions grouped by date
+//    val timeEntriesByDay by viewModel.timeEntriesByDay.collectAsState()
+//    val sessions = timeEntriesByDay[date] ?: emptyList()
+//
+//    // Separate the sessions into unsubmitted and submitted categories
+//    val unsubmittedSessions = sessions.filter { !it.isSubmitted }
+//    val submittedSessions = sessions.filter { it.isSubmitted }
+//
+//    Scaffold(
+//        topBar = {
+//            TopAppBar(
+//                title = { Text(text = "Sessions for $date", style = MaterialTheme.typography.titleMedium) },
+//                navigationIcon = {
+//                    IconButton(onClick = { navController.popBackStack() }) {
+//                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+//                    }
+//                },
+//                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+//            )
+//        }
+//    ) { paddingValues ->
+//        Column(
+//            modifier = Modifier
+//                .padding(paddingValues)
+//                .fillMaxSize()
+//                .padding(16.dp)
+//        ) {
+//            // Temporary delete button
+//            Button(
+//                onClick = { viewModel.deleteAllEntries() },
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(8.dp)
+//            ) {
+//                Text("Delete All Sessions (Temp Button)")
+//            }
+//
+//            LazyColumn {
+//                // Display Unsubmitted Sessions First
+//                item {
+//                    Text(
+//                        text = "Unsubmitted Sessions",
+//                        style = MaterialTheme.typography.titleMedium,
+//                        modifier = Modifier.padding(vertical = 8.dp)
+//                    )
+//                }
+//
+//                items(unsubmittedSessions) { session ->
+//                    SessionItem(
+//                        session = session,
+//                        onCheckChanged = { updatedSession ->
+//                            Log.d("SessionToggle", "Toggling session: $updatedSession")
+//                            viewModel.toggleSessionSubmission(updatedSession) // Toggle submission state
+//                        }
+//                    )
+//                }
+//
+//                // Add a spacer if there are no unsubmitted sessions
+//                if (unsubmittedSessions.isEmpty()) {
+//                    item {
+//                        Text(
+//                            text = "No unsubmitted sessions available.",
+//                            style = MaterialTheme.typography.bodySmall,
+//                            modifier = Modifier.padding(vertical = 8.dp)
+//                        )
+//                    }
+//                }
+//
+//                // Display Submitted Sessions Below
+//                item {
+//                    Text(
+//                        text = "Submitted Sessions",
+//                        style = MaterialTheme.typography.titleMedium,
+//                        modifier = Modifier.padding(vertical = 8.dp)
+//                    )
+//                }
+//
+//                items(submittedSessions) { session ->
+//                    SessionItem(
+//                        session = session,
+//                        onCheckChanged = { updatedSession ->
+//                            Log.d("SessionToggle", "Toggling session: $updatedSession")
+//                            viewModel.toggleSessionSubmission(updatedSession) // Toggle submission state
+//                        }
+//                    )
+//                }
+//
+//                // Add a spacer if there are no submitted sessions
+//                if (submittedSessions.isEmpty()) {
+//                    item {
+//                        Text(
+//                            text = "No submitted sessions available.",
+//                            style = MaterialTheme.typography.bodySmall,
+//                            modifier = Modifier.padding(vertical = 8.dp)
+//                        )
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
+//
+//
+//@Composable
+//fun SessionItem(session: Session, onCheckChanged: ((Session) -> Unit)?) {
+//    // Using rememberUpdatedState to track the latest session.isSubmitted value
+//    val isCheckedState = rememberUpdatedState(session.isSubmitted)
+//
+//    Row(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(8.dp),
+//        verticalAlignment = Alignment.CenterVertically,
+//        horizontalArrangement = Arrangement.SpaceBetween
+//    ) {
+//        Column(modifier = Modifier.weight(1f)) {
+//            Text(
+//                text = "Session ID: ${session.id} (${if (session.isSubmitted) "Submitted" else "Not Submitted"})",
+//                style = MaterialTheme.typography.bodyMedium
+//            )
+//        }
+//
+//        Checkbox(
+//            checked = isCheckedState.value,
+//            onCheckedChange = { isCheckedNow ->
+//                if (session.isSubmitted != isCheckedNow) {
+//                    onCheckChanged?.invoke(session.copy(isSubmitted = isCheckedNow))
+//                }
+//            },
+//            enabled = onCheckChanged != null
+//        )
+//    }
+//}
+
+
+
+//@RequiresApi(Build.VERSION_CODES.O)
+//@OptIn(ExperimentalMaterial3Api::class)
+//@Composable
+//fun DailyTimeEntriesScreen(
+//    date: String,
+//    navController: NavController,
+//    viewModel: TimeCardViewModel = hiltViewModel()
+//) {
+//    val timeEntriesByDay by viewModel.timeEntriesByDay.collectAsState()
+//    val sessions = timeEntriesByDay[date] ?: emptyList()
+//
+//    // Separate the sessions into unsubmitted and submitted categories
+//    val unsubmittedSessions = sessions.filter { !it.isSubmitted }
+//    val submittedSessions = sessions.filter { it.isSubmitted }
+//
+//    Scaffold(
+//        topBar = {
+//            TopAppBar(
+//                title = { Text(text = "Sessions for $date", style = MaterialTheme.typography.titleMedium) },
+//                navigationIcon = {
+//                    IconButton(onClick = { navController.popBackStack() }) {
+//                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+//                    }
+//                },
+//                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+//            )
+//        }
+//    ) { paddingValues ->
+//        Column(
+//            modifier = Modifier
+//                .padding(paddingValues)
+//                .fillMaxSize()
+//                .padding(16.dp)
+//        ) {
+//            // Temporary delete button
+//            Button(
+//                onClick = { viewModel.deleteAllEntries() },
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(8.dp)
+//            ) {
+//                Text("Delete All Sessions (Temp Button)")
+//            }
+//
+//            LazyColumn {
+//                // Display Unsubmitted Sessions First
+//                item {
+//                    Text(
+//                        text = "Unsubmitted Sessions",
+//                        style = MaterialTheme.typography.titleMedium,
+//                        modifier = Modifier.padding(vertical = 8.dp)
+//                    )
+//                }
+//
+//                items(unsubmittedSessions) { session ->
+//                    SessionItem(
+//                        session = session,
+//                        onCheckChanged = { updatedSession ->
+//                            Log.d("SessionToggle", "Toggling session: $updatedSession")
+//                            viewModel.toggleSessionSubmission(updatedSession) // Toggle submission state
+//                        }
+//                    )
+//                }
+//
+//                // Display Submitted Sessions Below
+//                item {
+//                    Text(
+//                        text = "Submitted Sessions",
+//                        style = MaterialTheme.typography.titleMedium,
+//                        modifier = Modifier.padding(vertical = 8.dp)
+//                    )
+//                }
+//
+//                items(submittedSessions) { session ->
+//                    SessionItem(
+//                        session = session,
+//                        onCheckChanged = { updatedSession ->
+//                            Log.d("SessionToggle", "Toggling session: $updatedSession")
+//                            viewModel.toggleSessionSubmission(updatedSession) // Toggle submission state
+//                        }
+//                    )
+//                }
+//            }
+//        }
+//    }
+//}
+//
+//@Composable
+//fun SessionItem(session: Session, onCheckChanged: ((Session) -> Unit)?) {
+//    Row(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(8.dp),
+//        verticalAlignment = Alignment.CenterVertically,
+//        horizontalArrangement = Arrangement.SpaceBetween
+//    ) {
+//        Column(modifier = Modifier.weight(1f)) {
+//            Text(
+//                text = "Session ID: ${session.id} (${if (session.isSubmitted) "Submitted" else "Not Submitted"})",
+//                style = MaterialTheme.typography.bodyMedium
+//            )
+//        }
+//
+//        Checkbox(
+//            checked = session.isSubmitted, // Directly reference session state
+//            onCheckedChange = { isCheckedNow ->
+//                if (session.isSubmitted != isCheckedNow) {
+//                    onCheckChanged?.invoke(session.copy(isSubmitted = isCheckedNow))
+//                }
+//            },
+//            enabled = onCheckChanged != null
+//        )
+//    }
+//}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//@RequiresApi(Build.VERSION_CODES.O)
+//@OptIn(ExperimentalMaterial3Api::class)
+//@Composable
+//fun DailyTimeEntriesScreen(date: String, navController: NavController, viewModel: TimeCardViewModel = hiltViewModel()) {
+//    val timeEntriesByDay by viewModel.timeEntriesByDay.collectAsState()
+//    val entries = timeEntriesByDay[date] ?: emptyList()
+//
+//
+//    // Separate the entries into unsubmitted and submitted categories
+//    val unsubmittedEntries = entries.filter { !it.isSubmitted }
+//    val submittedEntries = entries.filter { it.isSubmitted }
+//
+//    Scaffold(
+//        topBar = {
+//            TopAppBar(
+//                title = { Text(text = "Time Entries for $date", style = MaterialTheme.typography.titleMedium) },
+//                navigationIcon = {
+//                    IconButton(onClick = { navController.popBackStack() }) {
+//                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+//                    }
+//                },
+//                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+//            )
+//        }
+//    ) { paddingValues ->
+//        Column(
+//            modifier = Modifier
+//                .padding(paddingValues)
+//                .fillMaxSize()
+//                .padding(16.dp)
+//        ) {
+//            // Add the temporary delete button here
+//            Button(
+//                onClick = { viewModel.deleteAllEntries() },
+//                modifier = Modifier
+//                    .fillMaxWidth()
+//                    .padding(8.dp)
+//            ) {
+//                Text("Delete All Entries (Temp Button)")
+//            }
+//
+//            LazyColumn {
+//                // Display Unsubmitted Entries First
+//                item {
+//                    Text(
+//                        text = "Unsubmitted Entries",
+//                        style = MaterialTheme.typography.titleMedium,
+//                        modifier = Modifier.padding(vertical = 8.dp)
+//                    )
+//                }
+//
+//                items(unsubmittedEntries) { entry ->
+//                    TimeEntryItem(
+//                        entry = entry,
+//                        onCheckChanged = { updatedEntry ->
+//                            Log.d("TimeEntryToggle", "Toggling entry: $updatedEntry")
+//                            viewModel.toggleTimeEntrySubmission(updatedEntry) // Toggle submission state
+//                        }
+//                    )
+//                }
+//
+//                // Display Submitted Entries Below
+//                item {
+//                    Text(
+//                        text = "Submitted Entries",
+//                        style = MaterialTheme.typography.titleMedium,
+//                        modifier = Modifier.padding(vertical = 8.dp)
+//                    )
+//                }
+//
+//                items(submittedEntries) { entry ->
+//                    TimeEntryItem(
+//                        entry = entry,
+//                        onCheckChanged = { updatedEntry ->
+//                            Log.d("TimeEntryToggle", "Toggling entry: $updatedEntry")
+//                            viewModel.toggleTimeEntrySubmission(updatedEntry) // Toggle submission state
+//                        }
+//                    )
+//                }
+//            }
+//        }
+//    }
+//}
+//
+//@Composable
+//fun TimeEntryItem(entry: TaskTimeEntry, onCheckChanged: ((TaskTimeEntry) -> Unit)?) {
+//    // Calculate hours and minutes from the duration in seconds
+//    val hours = entry.duration / 3600
+//    val minutes = (entry.duration % 3600) / 60
+//
+//    val durationText = when {
+//        hours > 0 -> "$hours hr ${minutes} min" // Display in hours and minutes if hours are present
+//        else -> "$minutes min" // Display only minutes if hours are zero
+//    }
+//
+//    // Remember the checkbox state and synchronize it with the entry state
+//    val isChecked = rememberUpdatedState(entry.isSubmitted)
+//
+//    Row(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(8.dp),
+//        verticalAlignment = Alignment.CenterVertically,
+//        horizontalArrangement = Arrangement.SpaceBetween
+//    ) {
+//        Column(modifier = Modifier.weight(1f)) {
+//            Text(
+//                text = "${entry.startTime} - ${entry.endTime} ($durationText)",
+//                style = MaterialTheme.typography.bodyMedium
+//            )
+//        }
+//
+//        Checkbox(
+//            checked = isChecked.value,
+//            onCheckedChange = { isCheckedNow ->
+//                // Invoke callback to update state only if onCheckChanged is not null
+//                onCheckChanged?.let {
+//                    if (entry.isSubmitted != isCheckedNow) {
+//                        it(entry.copy(isSubmitted = isCheckedNow))
+//                    }
+//                }
+//            },
+//            enabled = onCheckChanged != null
+//        )
+//    }
+//}
+//
 
 
 

@@ -49,9 +49,9 @@ class TimeCardViewModel @Inject constructor(
     private val _isClockedIn = MutableStateFlow(false)
     val isClockedIn: StateFlow<Boolean> = _isClockedIn
 
-    private val _timeEntriesByDay = MutableStateFlow<Map<String, List<TaskTimeEntry>>>(emptyMap())
-    val timeEntriesByDay: StateFlow<Map<String, List<TaskTimeEntry>>> = _timeEntriesByDay
-
+    // StateFlow to manage the mapping of date to session lists
+    private val _timeEntriesByDay = MutableStateFlow<Map<String, List<Session>>>(emptyMap())
+    val timeEntriesByDay: StateFlow<Map<String, List<Session>>> = _timeEntriesByDay
     init {
         updateTimeEntriesByDay()
     }
@@ -63,18 +63,52 @@ class TimeCardViewModel @Inject constructor(
         _isClockedIn.value = true
         clockInTime = getCurrentTimeFormattedWithoutSeconds()
 
+        val currentDate = LocalDate.now().toString() // Set the current date
+
         // Create and save session in the database
         viewModelScope.launch {
             val session = Session(
+                date = currentDate, // <-- Set the date here
                 clockInTime = clockInTime ?: "00:00 AM",
                 isClockedIn = true,
-                totalWorkTime = 0L // Initially zero, will be calculated on clock-out
+                totalWorkTime = 0L, // Initially zero, will be calculated on clock-out
+                isSubmitted = false
             )
 
             repository.saveSession(session)
-            Log.d("TimeCardViewModel", "Started work session at $clockInTime")
+            Log.d("TimeCardViewModel", "Started work session at $clockInTime on date $currentDate")
         }
     }
+//
+//    @RequiresApi(Build.VERSION_CODES.O)
+//    fun endWorkSession(context: Context) {
+//        if (!_isClockedIn.value) return
+//
+//        _isClockedIn.value = false
+//        val clockOutTime = getCurrentTimeFormattedWithoutSeconds()
+//
+//        // Calculate total session duration
+//        val sessionDurationSeconds = calculateSessionDuration(clockInTime ?: "00:00 AM", clockOutTime)
+//        totalWorkTime = sessionDurationSeconds
+//
+//        viewModelScope.launch {
+//            val activeSession = repository.getActiveSession()?.copy(
+//                isClockedIn = false,
+//                clockOutTime = clockOutTime, // Set the specific clockOutTime for this session
+//                totalWorkTime = sessionDurationSeconds,
+//                isSubmitted = false
+//            )
+//
+//            activeSession?.let {
+//                repository.saveSession(it)
+//                Log.d("TimeCardViewModel", "Ended work session at $clockOutTime with total duration ${formatDuration(sessionDurationSeconds)}")
+//            } ?: run {
+//                Log.e("TimeCardViewModel", "No active session found to end.")
+//            }
+//        }
+//    }
+
+
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun endWorkSession(context: Context) {
@@ -83,22 +117,29 @@ class TimeCardViewModel @Inject constructor(
         _isClockedIn.value = false
         val clockOutTime = getCurrentTimeFormattedWithoutSeconds()
 
-        // Calculate total session duration (difference between clock in and out times)
+        // Calculate total session duration
         val sessionDurationSeconds = calculateSessionDuration(clockInTime ?: "00:00 AM", clockOutTime)
         totalWorkTime = sessionDurationSeconds
 
         viewModelScope.launch {
-            val session = repository.getSession()?.copy(
+            // Fetch the actual active (clocked in) session to ensure correct update
+            val activeSession = repository.getActiveSession()?.copy(
                 isClockedIn = false,
-                totalWorkTime = sessionDurationSeconds // Save in seconds
+                clockOutTime = clockOutTime,
+                totalWorkTime = sessionDurationSeconds,
+                isSubmitted = false
             )
 
-            session?.let {
-                repository.saveSession(it)
+            activeSession?.let {
+                repository.saveSession(it) // Save by unique ID to avoid overwriting
                 Log.d("TimeCardViewModel", "Ended work session at $clockOutTime with total duration ${formatDuration(sessionDurationSeconds)}")
+            } ?: run {
+                Log.e("TimeCardViewModel", "No active session found to end.")
             }
         }
     }
+
+
 
 
 
@@ -121,7 +162,6 @@ class TimeCardViewModel @Inject constructor(
         savedStateHandle["taskSeconds"] = seconds
     }
 
-    // Function to start a task within the session
     @RequiresApi(Build.VERSION_CODES.O)
     fun startTask(context: Context) {
         if (!_isClockedIn.value) {
@@ -138,24 +178,40 @@ class TimeCardViewModel @Inject constructor(
         isTaskRunning = true
         taskSeconds = 0L
 
-        // Save the task in the database
         viewModelScope.launch {
+            // Retrieve the active session
+            val activeSession = repository.getActiveSession()
+            if (activeSession == null) {
+                Log.e("TimeCardViewModel", "No active session found. Cannot start a task.")
+                return@launch
+            }
+
+            // Save the task in the database, linking it to the active session
             val activeTask = TaskTimeEntry(
+                sessionId = activeSession.id, // Link to the current session
                 startTime = taskStartTime ?: "00:00 AM",
                 endTime = "", // Not yet set
                 duration = 0,
                 date = getCurrentDateFormatted(),
-                isSubmitted = false,
                 expectedDuration = maxTaskTime.toIntOrNull() ?: 0,
-                isOverUnderAET = false,
                 secondsOverUnderAET = 0,
                 isTaskRunning = true
             )
 
             repository.insertTaskTimeEntry(activeTask)
+
+            // Update the number of tasks in the session
+            val updatedSession = activeSession.copy(
+                numberOfTasks = activeSession.numberOfTasks + 1
+            )
+            repository.saveSession(updatedSession)
+
             Log.d("TimeCardViewModel", "Started new task at $taskStartTime")
         }
     }
+
+
+
 
     // Function to complete a task
     @RequiresApi(Build.VERSION_CODES.O)
@@ -170,6 +226,7 @@ class TimeCardViewModel @Inject constructor(
         val taskDurationSeconds = taskSeconds
 
         viewModelScope.launch {
+            // Get the active task from the repository
             val activeTask = repository.getActiveTask()
             if (activeTask == null) {
                 Log.e("TimeCardViewModel", "No active task found to complete.")
@@ -177,28 +234,39 @@ class TimeCardViewModel @Inject constructor(
             }
 
             // Calculate over/under AET in seconds
-            val expectedDurationSeconds = activeTask.expectedDuration * 60
+            val expectedDurationSeconds = activeTask.expectedDuration * 60L
             val overUnderAET = taskDurationSeconds - expectedDurationSeconds
 
-            // Update the task entry with end time and completed state
+            // Update the task entry with the calculated values
             val completedTask = activeTask.copy(
                 endTime = taskEndTime,
                 duration = taskDurationSeconds,
-                isTaskRunning = false,
-                isOverUnderAET = overUnderAET != 0L,
-                secondsOverUnderAET = overUnderAET
+                secondsOverUnderAET = overUnderAET,
+                isTaskRunning = false
             )
 
             // Update the entry in the database
             repository.updateTimeEntry(completedTask)
-            Log.d("TimeCardViewModel", "Task completed at $taskEndTime with duration $taskDurationSeconds seconds.")
+            Log.d("TimeCardViewModel", "Task completed at $taskEndTime with duration $taskDurationSeconds seconds and over/under AET: $overUnderAET seconds.")
 
-            // Only clear the task state after successfully updating
+            // Update the associated session's over/under AET sum and number of tasks
+            val activeSession = repository.getActiveSession()
+            activeSession?.let { session ->
+                val updatedSession = session.copy(
+                    totalOverUnderAET = session.totalOverUnderAET + overUnderAET,
+                    numberOfTasks = session.numberOfTasks // This remains the same unless new tasks were added
+                )
+                repository.saveSession(updatedSession)
+                Log.d("TimeCardViewModel", "Updated session with new over/under AET total: ${updatedSession.totalOverUnderAET} seconds.")
+            }
+
+            // Clear the task state
             isTaskRunning = false
             taskStartTime = null
             taskSeconds = 0L // Clear the counter
         }
     }
+
 
 
     // Helper function to format a duration in HH:MM:SS
@@ -227,42 +295,69 @@ class TimeCardViewModel @Inject constructor(
 
 
 
-        fun deleteAllEntries() {
+        fun deleteAllSessions() {
         viewModelScope.launch {
-            repository.deleteAllTimeEntries()
+            repository.deleteAllSessions()
             updateTimeEntriesByDay()
         }
     }
 
-    fun toggleTimeEntrySubmission(entry: TaskTimeEntry) {
+    // Function to fetch the active session
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun getActiveSession(): Session? {
+        var activeSession: Session? = null
         viewModelScope.launch {
-            // Log to verify entry state before update
-            Log.d("TimeCardViewModel", "Toggling entry ID ${entry.id}, current isSubmitted: ${entry.isSubmitted}")
+            activeSession = repository.getActiveSession()
+            Log.d("TimeCardViewModel", "Active session retrieved: $activeSession")
+        }
+        return activeSession
+    }
+    fun toggleSessionSubmission(session: Session) {
+        viewModelScope.launch {
+            Log.d("TimeCardViewModel", "Toggling session ID ${session.id}, current isSubmitted: ${session.isSubmitted}")
 
-            // Toggle the isSubmitted state of the entry and update it in the database
-            val updatedEntry = entry.copy(isSubmitted = !entry.isSubmitted)
-            repository.updateTimeEntry(updatedEntry)
+            // Only toggle and update if the state needs to change
+            val updatedSession = session.copy(isSubmitted = session.isSubmitted)
 
-            // Log the updated entry state after toggling
-            Log.d("TimeCardViewModel", "Updated entry ID ${updatedEntry.id}, new isSubmitted: ${updatedEntry.isSubmitted}")
+            // Save the updated session to the repository
+            repository.saveSession(updatedSession)
 
-            // Trigger UI update by refreshing time entries from the database
+            Log.d("TimeCardViewModel", "Updated session ID ${updatedSession.id}, new isSubmitted: ${updatedSession.isSubmitted}")
+//
+//            // Refresh the sessions from the database
             updateTimeEntriesByDay()
         }
     }
+
+
+
+
+
+
+    fun submitSession(session: Session) {
+        viewModelScope.launch {
+            // Update the session's isSubmitted field to true
+            val updatedSession = session.copy(isSubmitted = true)
+            repository.saveSession(updatedSession)
+
+            // Log the submission action for debugging
+            Log.d("TimeCardViewModel", "Session submitted with ID: ${updatedSession.id}")
+
+            // Trigger UI updates if necessary, like refreshing the list of sessions
+            updateTimeEntriesByDay() // Or other appropriate method to update the session list
+        }
+    }
+
+
+
 
 
 
     fun updateTimeEntriesByDay() {
         viewModelScope.launch {
-            repository.getAllTimeEntries().collect { entries ->
-                if (entries.isEmpty()) {
-                    Log.d("TimeCardViewModel", "No entries found in the database.")
-                } else {
-                    Log.d("TimeCardViewModel", "Entries retrieved from database: $entries")
-                }
-                // Group entries by date
-                _timeEntriesByDay.value = entries.groupBy { it.date }
+            repository.getAllSessions().collect { sessions ->
+                val groupedByDate = sessions.groupBy { it.date }
+                _timeEntriesByDay.value = groupedByDate
             }
         }
     }

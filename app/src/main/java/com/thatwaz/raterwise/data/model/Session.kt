@@ -2,15 +2,21 @@ package com.thatwaz.raterwise.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+
 @Entity(tableName = "session")
 data class Session(
-    @PrimaryKey val id: Int = 1, // Only one active session
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val date: String,
     val clockInTime: String,
+    val clockOutTime: String? = null,
     val isClockedIn: Boolean,
-    val totalWorkTime: Long = 0L,
-    val numberOfTasks: Int = 0, // New field to store the number of tasks
-    val totalOverUnderAET: Int = 0 // New field to store the sum of over/under AET for all tasks
+    val totalWorkTime: Long = 0L, // Total work time in seconds
+    val numberOfTasks: Int = 0, // Number of tasks worked on during the session
+    val totalOverUnderAET: Long = 0L, // Sum of over/under AET for all tasks in seconds
+    val isSubmitted: Boolean = false // Indicates if the session has been submitted
 )
+
+
 
 
 

@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.flow
 import java.time.LocalDate
 import javax.inject.Inject
 
-
 class TimeTrackingRepositoryImpl @Inject constructor(
     private val taskTimeTrackingDao: TaskTimeTrackingDao, // Handles task-related operations
     private val sessionDao: SessionDao, // Handles session-related operations
@@ -40,12 +39,6 @@ class TimeTrackingRepositoryImpl @Inject constructor(
         Log.d("TimeTrackingRepo", "Inserted TaskTimeEntry with ID: $insertedId")
     }
 
-    override suspend fun submitTimeEntry(date: String, entry: TaskTimeEntry) {
-        val updatedEntry = entry.copy(isSubmitted = true)
-        Log.d("TimeTrackingRepo", "Submitting TaskTimeEntry for date: $date, ID: ${entry.id}")
-        taskTimeTrackingDao.updateTaskTimeEntry(updatedEntry)
-    }
-
     override suspend fun updateTimeEntry(taskTimeEntry: TaskTimeEntry) {
         Log.d("TimeTrackingRepo", "Attempting to update task entry in database: $taskTimeEntry")
         taskTimeTrackingDao.updateTaskTimeEntry(taskTimeEntry)
@@ -53,18 +46,17 @@ class TimeTrackingRepositoryImpl @Inject constructor(
     }
 
 
-//    override suspend fun updateTimeEntry(taskTimeEntry: TaskTimeEntry) {
-//        Log.d("TimeTrackingRepo", "Updating TaskTimeEntry: ID = ${taskTimeEntry.id}")
-//        taskTimeTrackingDao.updateTaskTimeEntry(taskTimeEntry)
-//    }
-
     override suspend fun deleteAllTimeEntries() {
         Log.d("TimeTrackingRepo", "Deleting all TaskTimeEntries")
         taskTimeTrackingDao.deleteAllTaskTimeEntries()
     }
 
+    override suspend fun deleteAllSessions() {
+        Log.d("TimeTrackingRepo", "Deleting all sessions")
+        sessionDao.deleteAllSessions()
+    }
+
     // DailyWorkSummary Operations
-    // DailyWorkSummary operations
     override fun getDailySummary(date: String): Flow<DailyWorkSummary> {
         Log.d("TimeTrackingRepo", "Fetching daily summary for date: $date")
         return dailyWorkSummaryDao.getDailyWorkSummary(date)
@@ -86,6 +78,11 @@ class TimeTrackingRepositoryImpl @Inject constructor(
         workPeriodDao.insertWorkPeriod(workPeriod)
     }
 
+    override fun getAllSessions(): Flow<List<Session>> {
+        return sessionDao.getAllSessions()
+    }
+
+
     @RequiresApi(Build.VERSION_CODES.O)
     override suspend fun getCurrentWorkPeriod(): Flow<WorkPeriod> = flow {
         val today = LocalDate.now()
@@ -99,11 +96,12 @@ class TimeTrackingRepositoryImpl @Inject constructor(
     }
 
     // Session Operations
-    override suspend fun getSession(): Session? {
-        val session = sessionDao.getSession()
-        Log.d("TimeTrackingRepo", "Fetched session: $session")
-        return session
+    override suspend fun getActiveSession(): Session? {
+        val activeSession = sessionDao.getActiveSession()
+        Log.d("TimeTrackingRepo", "Fetched active session: $activeSession")
+        return activeSession
     }
+
 
     override suspend fun saveSession(session: Session) {
         Log.d("TimeTrackingRepo", "Saving session: $session")
@@ -120,14 +118,123 @@ class TimeTrackingRepositoryImpl @Inject constructor(
         return duration - expectedDurationInSeconds
     }
 
-
     override suspend fun getActiveTask(): TaskTimeEntry? {
         // Directly return the active task from the DAO
         return taskTimeTrackingDao.getActiveTask()
     }
-
-
 }
+
+
+//class TimeTrackingRepositoryImpl @Inject constructor(
+//    private val taskTimeTrackingDao: TaskTimeTrackingDao, // Handles task-related operations
+//    private val sessionDao: SessionDao, // Handles session-related operations
+//    private val dailyWorkSummaryDao: DailyWorkSummaryDao, // Handles daily summaries
+//    private val workPeriodDao: WorkPeriodDao // Handles work periods
+//) : TimeTrackingRepository {
+//
+//    // TaskTimeEntry Operations
+//    override fun getTimeEntriesByDate(date: String): Flow<List<TaskTimeEntry>> {
+//        Log.d("TimeTrackingRepo", "Fetching task time entries for date: $date")
+//        return taskTimeTrackingDao.getTaskTimeEntriesByDate(date)
+//    }
+//
+//    override fun getAllTimeEntries(): Flow<List<TaskTimeEntry>> =
+//        taskTimeTrackingDao.getAllTaskTimeEntries()
+//
+//    override suspend fun insertTaskTimeEntry(taskTimeEntry: TaskTimeEntry) {
+//        Log.d("TimeTrackingRepo", "Inserting TaskTimeEntry: $taskTimeEntry")
+//        val insertedId = taskTimeTrackingDao.insertTaskTimeEntry(taskTimeEntry)
+//        Log.d("TimeTrackingRepo", "Inserted TaskTimeEntry with ID: $insertedId")
+//    }
+//
+//    override suspend fun submitTimeEntry(date: String, entry: TaskTimeEntry) {
+//        val updatedEntry = entry.copy(isSubmitted = true)
+//        Log.d("TimeTrackingRepo", "Submitting TaskTimeEntry for date: $date, ID: ${entry.id}")
+//        taskTimeTrackingDao.updateTaskTimeEntry(updatedEntry)
+//    }
+//
+//    override suspend fun updateTimeEntry(taskTimeEntry: TaskTimeEntry) {
+//        Log.d("TimeTrackingRepo", "Attempting to update task entry in database: $taskTimeEntry")
+//        taskTimeTrackingDao.updateTaskTimeEntry(taskTimeEntry)
+//        Log.d("TimeTrackingRepo", "Task entry updated successfully.")
+//    }
+//
+//
+////    override suspend fun updateTimeEntry(taskTimeEntry: TaskTimeEntry) {
+////        Log.d("TimeTrackingRepo", "Updating TaskTimeEntry: ID = ${taskTimeEntry.id}")
+////        taskTimeTrackingDao.updateTaskTimeEntry(taskTimeEntry)
+////    }
+//
+//    override suspend fun deleteAllTimeEntries() {
+//        Log.d("TimeTrackingRepo", "Deleting all TaskTimeEntries")
+//        taskTimeTrackingDao.deleteAllTaskTimeEntries()
+//    }
+//
+//    // DailyWorkSummary Operations
+//    // DailyWorkSummary operations
+//    override fun getDailySummary(date: String): Flow<DailyWorkSummary> {
+//        Log.d("TimeTrackingRepo", "Fetching daily summary for date: $date")
+//        return dailyWorkSummaryDao.getDailyWorkSummary(date)
+//    }
+//
+//    override suspend fun insertDailyWorkSummary(summary: DailyWorkSummary) {
+//        Log.d("TimeTrackingRepo", "Inserting DailyWorkSummary for date: ${summary.date}")
+//        dailyWorkSummaryDao.insertDailyWorkSummary(summary)
+//    }
+//
+//    // WorkPeriod operations
+//    override fun getWorkPeriod(startDate: String, endDate: String): Flow<WorkPeriod> {
+//        Log.d("TimeTrackingRepo", "Fetching WorkPeriod from $startDate to $endDate")
+//        return workPeriodDao.getWorkPeriod(startDate, endDate)
+//    }
+//
+//    override suspend fun insertWorkPeriod(workPeriod: WorkPeriod) {
+//        Log.d("TimeTrackingRepo", "Inserting WorkPeriod: $workPeriod")
+//        workPeriodDao.insertWorkPeriod(workPeriod)
+//    }
+//
+//    @RequiresApi(Build.VERSION_CODES.O)
+//    override suspend fun getCurrentWorkPeriod(): Flow<WorkPeriod> = flow {
+//        val today = LocalDate.now()
+//        val startOfWeek = today.minusDays(today.dayOfWeek.value.toLong() - 1) // Monday
+//        val endOfWeek = startOfWeek.plusDays(6) // Sunday
+//
+//        val currentWorkPeriod = workPeriodDao
+//            .getWorkPeriod(startOfWeek.toString(), endOfWeek.toString())
+//            .first()
+//        emit(currentWorkPeriod)
+//    }
+//
+//    // Session Operations
+//    override suspend fun getSession(): Session? {
+//        val session = sessionDao.getSession()
+//        Log.d("TimeTrackingRepo", "Fetched session: $session")
+//        return session
+//    }
+//
+//    override suspend fun saveSession(session: Session) {
+//        Log.d("TimeTrackingRepo", "Saving session: $session")
+//        sessionDao.saveSession(session)
+//    }
+//
+//    override suspend fun clearSession() {
+//        Log.d("TimeTrackingRepo", "Clearing session")
+//        sessionDao.clearSession()
+//    }
+//
+//    override fun calculateOverUnderAET(duration: Long, expectedDuration: Int): Long {
+//        val expectedDurationInSeconds = expectedDuration * 60L // Convert expected duration from minutes to seconds
+//        return duration - expectedDurationInSeconds
+//    }
+//
+//
+//    override suspend fun getActiveTask(): TaskTimeEntry? {
+//        // Directly return the active task from the DAO
+//        return taskTimeTrackingDao.getActiveTask()
+//    }
+//
+//
+//}
 
 
 //class TimeTrackingRepositoryImpl @Inject constructor(
