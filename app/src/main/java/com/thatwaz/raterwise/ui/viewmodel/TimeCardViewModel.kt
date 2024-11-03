@@ -18,6 +18,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -31,30 +32,203 @@ class TimeCardViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    // Observable state variables
-    var isTaskRunning by mutableStateOf(false)
-        private set
-    var taskSeconds by mutableStateOf(0L)
-        private set
-    var taskStartTime: String? = null
-    var maxTaskTime by mutableStateOf("")
-
-    val taskDurationSeconds = taskSeconds // Already in seconds
-
     private val formatterWithoutSeconds = DateTimeFormatter.ofPattern("hh:mm a")
 
-    var totalWorkTime by mutableStateOf(0L)
-    var clockInTime: String? = null
+    // Observable state variables
+    var isTaskRunning by mutableStateOf(savedStateHandle["isTaskRunning"] ?: false)
+        private set
+    var taskSeconds by mutableStateOf(savedStateHandle["taskSeconds"] ?: 0L)
+        private set
 
-    private val _isClockedIn = MutableStateFlow(false)
+    var taskStartTime: String? = savedStateHandle["taskStartTime"]
+    var maxTaskTime by mutableStateOf(savedStateHandle["maxTaskTime"] ?: "")
+
+    var totalWorkTime by mutableStateOf(savedStateHandle["totalWorkTime"] ?: 0L)
+    var clockInTime: String? = savedStateHandle["clockInTime"]
+
+    private val formatterWithSeconds = DateTimeFormatter.ofPattern("HH:mm:ss")
+
+    private val _isClockedIn = MutableStateFlow(savedStateHandle["isClockedIn"] ?: false)
     val isClockedIn: StateFlow<Boolean> = _isClockedIn
 
-    // StateFlow to manage the mapping of date to session lists
     private val _timeEntriesByDay = MutableStateFlow<Map<String, List<Session>>>(emptyMap())
     val timeEntriesByDay: StateFlow<Map<String, List<Session>>> = _timeEntriesByDay
+
+
+
+
+
     init {
-        updateTimeEntriesByDay()
+        viewModelScope.launch {
+            restoreSessionState()
+            updateTimeEntriesByDay()
+            restoreTaskTimerState()
+            taskStartTime = savedStateHandle["taskStartTime"]
+        }
     }
+
+
+    private fun updateStateHandle() {
+        savedStateHandle["isTaskRunning"] = isTaskRunning
+        savedStateHandle["taskSeconds"] = taskSeconds
+        savedStateHandle["taskStartTime"] = taskStartTime
+        savedStateHandle["clockInTime"] = clockInTime
+        savedStateHandle["totalWorkTime"] = totalWorkTime
+        savedStateHandle["isClockedIn"] = _isClockedIn.value
+
+        Log.d("TimeCardViewModel", "Updated SavedStateHandle - isTaskRunning: $isTaskRunning, taskSeconds: $taskSeconds, taskStartTime: $taskStartTime, clockInTime: $clockInTime, totalWorkTime: $totalWorkTime, isClockedIn: ${_isClockedIn.value}")
+    }
+
+//
+//    private fun restoreSessionState() {
+//        Log.d("TimeCardViewModel", "Restoring session state from SavedStateHandle...")
+//
+//        // Attempt to retrieve all state variables from SavedStateHandle
+//        isTaskRunning = savedStateHandle["isTaskRunning"] ?: false
+//        taskSeconds = savedStateHandle["taskSeconds"] ?: 0L
+//        taskStartTime = savedStateHandle["taskStartTime"]
+//        clockInTime = savedStateHandle["clockInTime"]
+//        totalWorkTime = savedStateHandle["totalWorkTime"] ?: 0L
+//        _isClockedIn.value = savedStateHandle["isClockedIn"] ?: false
+//
+//        Log.d("TimeCardViewModel", "Restored from SavedStateHandle - isTaskRunning: $isTaskRunning, taskSeconds: $taskSeconds, taskStartTime: $taskStartTime, clockInTime: $clockInTime, totalWorkTime: $totalWorkTime, isClockedIn: ${_isClockedIn.value}")
+//
+//        // Check if we need to fetch from the database
+//        viewModelScope.launch {
+//            if (clockInTime == null || !_isClockedIn.value) {
+//                val activeSession = repository.getActiveSession()
+//                activeSession?.let {
+//                    _isClockedIn.value = it.isClockedIn
+//                    clockInTime = it.clockInTime
+//                    totalWorkTime = it.totalWorkTime
+//                    updateStateHandle() // Ensure values are stored back to SavedStateHandle
+//                    Log.d("TimeCardViewModel", "Restored active session from database - isClockedIn: ${it.isClockedIn}, clockInTime: ${it.clockInTime}, totalWorkTime: ${it.totalWorkTime}")
+//                }
+//            }
+//
+//            // Restore active task if no task is currently running
+//            if (!isTaskRunning) {
+//                val activeTask = repository.getActiveTask()
+//                activeTask?.let {
+//                    isTaskRunning = it.isTaskRunning
+//                    taskStartTime = it.startTime
+//                    taskSeconds = it.duration.toLong()
+//                    updateStateHandle() // Save the active task state to SavedStateHandle
+//                    Log.d("TimeCardViewModel", "Restored active task from database - startTime: $taskStartTime, duration: $taskSeconds, isTaskRunning: $isTaskRunning")
+//                }
+//            }
+//        }
+//    }
+private fun restoreSessionState() {
+    // Log initial restore attempt
+    Log.d("TimeCardViewModel", "Restoring session state from SavedStateHandle...")
+
+    // Retrieve initial values from SavedStateHandle
+    isTaskRunning = savedStateHandle["isTaskRunning"] ?: false
+    taskSeconds = savedStateHandle["taskSeconds"] ?: 0L
+    taskStartTime = savedStateHandle["taskStartTime"]
+    clockInTime = savedStateHandle["clockInTime"]
+    totalWorkTime = savedStateHandle["totalWorkTime"] ?: 0L
+    _isClockedIn.value = savedStateHandle["isClockedIn"] ?: false
+
+    // Log the values retrieved from SavedStateHandle
+    Log.d("TimeCardViewModel", "SavedStateHandle - isTaskRunning: $isTaskRunning, taskSeconds: $taskSeconds, taskStartTime: $taskStartTime, clockInTime: $clockInTime, totalWorkTime: $totalWorkTime, isClockedIn: ${_isClockedIn.value}")
+
+    viewModelScope.launch {
+        if (clockInTime == null || !_isClockedIn.value) {
+            // Retrieve active session from database if not stored in SavedStateHandle
+            val activeSession = repository.getActiveSession()
+            activeSession?.let {
+                _isClockedIn.value = it.isClockedIn
+                clockInTime = it.clockInTime
+                totalWorkTime = it.totalWorkTime
+                updateStateHandle() // Save restored session to SavedStateHandle
+
+                // Log that we restored the session from the database
+                Log.d("TimeCardViewModel", "Restored active session from database - isClockedIn: ${it.isClockedIn}, clockInTime: ${it.clockInTime}, totalWorkTime: ${it.totalWorkTime}")
+            }
+        }
+
+        // Check for an active task as well
+        val activeTask = repository.getActiveTask()
+        if (activeTask != null) {
+            isTaskRunning = true
+            taskStartTime = activeTask.startTime
+
+            // Parse taskStartTime and calculate the elapsed time
+            val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+            val startTime = LocalTime.parse(taskStartTime, formatter)
+            val now = LocalTime.now()
+            val elapsed = Duration.between(startTime, now).seconds
+
+            // Log how many seconds have passed since the task was started
+            Log.d("TimeCardViewModel", "Seconds since task started: $elapsed seconds (from $taskStartTime to $now)")
+
+            // Update taskSeconds based on elapsed time
+            taskSeconds = elapsed + activeTask.duration
+            updateStateHandle() // Save restored task state to SavedStateHandle
+
+            // Log restored task details with calculated elapsed time
+            Log.d("TimeCardViewModel", "Restored active task from database - isTaskRunning: $isTaskRunning, taskStartTime: $taskStartTime, calculated taskSeconds: $taskSeconds")
+        } else {
+            Log.d("TimeCardViewModel", "No active task found in database.")
+        }
+    }
+}
+
+
+//    private fun restoreSessionState() {
+//        // Log initial restore attempt
+//        Log.d("TimeCardViewModel", "Restoring session state from SavedStateHandle...")
+//
+//        // Retrieve initial values from SavedStateHandle
+//        isTaskRunning = savedStateHandle["isTaskRunning"] ?: false
+//        taskSeconds = savedStateHandle["taskSeconds"] ?: 0L
+//        taskStartTime = savedStateHandle["taskStartTime"]
+//        clockInTime = savedStateHandle["clockInTime"]
+//        totalWorkTime = savedStateHandle["totalWorkTime"] ?: 0L
+//        _isClockedIn.value = savedStateHandle["isClockedIn"] ?: false
+//
+//        // Log the values retrieved from SavedStateHandle
+//        Log.d("TimeCardViewModel", "SavedStateHandle - isTaskRunning: $isTaskRunning, taskSeconds: $taskSeconds, taskStartTime: $taskStartTime, clockInTime: $clockInTime, totalWorkTime: $totalWorkTime, isClockedIn: ${_isClockedIn.value}")
+//
+//        viewModelScope.launch {
+//            if (clockInTime == null || !_isClockedIn.value) {
+//                // Retrieve active session from database if not stored in SavedStateHandle
+//                val activeSession = repository.getActiveSession()
+//                activeSession?.let {
+//                    _isClockedIn.value = it.isClockedIn
+//                    clockInTime = it.clockInTime
+//                    totalWorkTime = it.totalWorkTime
+//                    updateStateHandle() // Save restored session to SavedStateHandle
+//
+//                    // Log that we restored the session from the database
+//                    Log.d("TimeCardViewModel", "Restored active session from database - isClockedIn: ${it.isClockedIn}, clockInTime: ${it.clockInTime}, totalWorkTime: ${it.totalWorkTime}")
+//                }
+//            }
+//
+//            // Check for an active task as well
+//            val activeTask = repository.getActiveTask()
+//            if (activeTask != null) {
+//                // Restore task state if an active task is found
+//                isTaskRunning = true
+//                taskSeconds = activeTask.duration.toLong()
+//                taskStartTime = activeTask.startTime
+//                updateStateHandle() // Save restored task state to SavedStateHandle
+//
+//                // Log restored task details
+//                Log.d("TimeCardViewModel", "Restored active task from database - isTaskRunning: $isTaskRunning, taskSeconds: $taskSeconds, taskStartTime: $taskStartTime")
+//            } else {
+//                Log.d("TimeCardViewModel", "No active task found in database.")
+//            }
+//        }
+//    }
+
+
+
+
+
+
 
 
     // Function to start the work session (clock-in)
@@ -62,86 +236,47 @@ class TimeCardViewModel @Inject constructor(
     fun startWorkSession(context: Context) {
         _isClockedIn.value = true
         clockInTime = getCurrentTimeFormattedWithoutSeconds()
+        updateStateHandle()
+        savedStateHandle["clockInTime"] = clockInTime
+        savedStateHandle["isClockedIn"] = true
 
-        val currentDate = LocalDate.now().toString() // Set the current date
-
-        // Create and save session in the database
         viewModelScope.launch {
             val session = Session(
-                date = currentDate, // <-- Set the date here
+                date = LocalDate.now().toString(),
                 clockInTime = clockInTime ?: "00:00 AM",
                 isClockedIn = true,
-                totalWorkTime = 0L, // Initially zero, will be calculated on clock-out
+                totalWorkTime = 0L,
                 isSubmitted = false
             )
-
             repository.saveSession(session)
-            Log.d("TimeCardViewModel", "Started work session at $clockInTime on date $currentDate")
+            Log.d("TimeCardViewModel", "Started work session at $clockInTime")
         }
     }
-//
-//    @RequiresApi(Build.VERSION_CODES.O)
-//    fun endWorkSession(context: Context) {
-//        if (!_isClockedIn.value) return
-//
-//        _isClockedIn.value = false
-//        val clockOutTime = getCurrentTimeFormattedWithoutSeconds()
-//
-//        // Calculate total session duration
-//        val sessionDurationSeconds = calculateSessionDuration(clockInTime ?: "00:00 AM", clockOutTime)
-//        totalWorkTime = sessionDurationSeconds
-//
-//        viewModelScope.launch {
-//            val activeSession = repository.getActiveSession()?.copy(
-//                isClockedIn = false,
-//                clockOutTime = clockOutTime, // Set the specific clockOutTime for this session
-//                totalWorkTime = sessionDurationSeconds,
-//                isSubmitted = false
-//            )
-//
-//            activeSession?.let {
-//                repository.saveSession(it)
-//                Log.d("TimeCardViewModel", "Ended work session at $clockOutTime with total duration ${formatDuration(sessionDurationSeconds)}")
-//            } ?: run {
-//                Log.e("TimeCardViewModel", "No active session found to end.")
-//            }
-//        }
-//    }
-
-
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun endWorkSession(context: Context) {
         if (!_isClockedIn.value) return
 
         _isClockedIn.value = false
+        savedStateHandle["isClockedIn"] = false
         val clockOutTime = getCurrentTimeFormattedWithoutSeconds()
-
-        // Calculate total session duration
         val sessionDurationSeconds = calculateSessionDuration(clockInTime ?: "00:00 AM", clockOutTime)
         totalWorkTime = sessionDurationSeconds
+        updateStateHandle()
 
         viewModelScope.launch {
-            // Fetch the actual active (clocked in) session to ensure correct update
             val activeSession = repository.getActiveSession()?.copy(
                 isClockedIn = false,
                 clockOutTime = clockOutTime,
-                totalWorkTime = sessionDurationSeconds,
-                isSubmitted = false
+                totalWorkTime = sessionDurationSeconds
             )
 
             activeSession?.let {
-                repository.saveSession(it) // Save by unique ID to avoid overwriting
-                Log.d("TimeCardViewModel", "Ended work session at $clockOutTime with total duration ${formatDuration(sessionDurationSeconds)}")
-            } ?: run {
-                Log.e("TimeCardViewModel", "No active session found to end.")
+                repository.saveSession(it)
+                Log.d("TimeCardViewModel", "Ended work session at $clockOutTime with duration ${formatDuration(sessionDurationSeconds)}")
             }
         }
     }
-
-
-
-
 
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -157,9 +292,10 @@ class TimeCardViewModel @Inject constructor(
         savedStateHandle["maxTaskTime"] = time
     }
 
-        fun updateTaskSeconds(seconds: Long) {
-        taskSeconds = seconds
-        savedStateHandle["taskSeconds"] = seconds
+    // Update taskSeconds and save it to savedStateHandle for persistence
+    fun updateTaskSeconds(newSeconds: Long) {
+        taskSeconds = newSeconds
+        savedStateHandle["taskSeconds"] = newSeconds
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -169,105 +305,154 @@ class TimeCardViewModel @Inject constructor(
             return
         }
 
-        if (isTaskRunning) {
-            Log.d("TimeCardViewModel", "A task is already running, skipping start.")
-            return
-        }
-
-        taskStartTime = getCurrentTimeFormatted()
-        isTaskRunning = true
-        taskSeconds = 0L
-
         viewModelScope.launch {
-            // Retrieve the active session
             val activeSession = repository.getActiveSession()
             if (activeSession == null) {
                 Log.e("TimeCardViewModel", "No active session found. Cannot start a task.")
                 return@launch
             }
 
-            // Save the task in the database, linking it to the active session
-            val activeTask = TaskTimeEntry(
-                sessionId = activeSession.id, // Link to the current session
-                startTime = taskStartTime ?: "00:00 AM",
-                endTime = "", // Not yet set
+            taskStartTime = LocalTime.now().format(formatterWithSeconds) // Format with seconds
+            isTaskRunning = true
+            taskSeconds = 0L
+            updateStateHandle()
+
+            // Create new task entry with seconds included in startTime
+            val newTask = TaskTimeEntry(
+                sessionId = activeSession.id,
+                startTime = taskStartTime ?: "00:00:00",
                 duration = 0,
                 date = getCurrentDateFormatted(),
                 expectedDuration = maxTaskTime.toIntOrNull() ?: 0,
-                secondsOverUnderAET = 0,
                 isTaskRunning = true
             )
+            repository.insertTaskTimeEntry(newTask)
 
-            repository.insertTaskTimeEntry(activeTask)
-
-            // Update the number of tasks in the session
             val updatedSession = activeSession.copy(
                 numberOfTasks = activeSession.numberOfTasks + 1
             )
             repository.saveSession(updatedSession)
 
-            Log.d("TimeCardViewModel", "Started new task at $taskStartTime")
+            Log.d("TimeCardViewModel", "Started new task at $taskStartTime linked to session ID ${activeSession.id}")
         }
     }
 
+//    @RequiresApi(Build.VERSION_CODES.O)
+//    fun startTask(context: Context) {
+//        viewModelScope.launch {
+//            val activeSession = repository.getActiveSession() ?: return@launch
+//
+//            // Check if there's already an active task
+//            val activeTask = repository.getActiveTask()
+//
+//            if (activeTask == null) {
+//                // Start a new task
+//                val taskStartTime = getCurrentTimeFormatted()
+//                isTaskRunning = true
+//                taskSeconds = 0L
+//                updateStateHandle()
+//
+//                val newTask = TaskTimeEntry(
+//                    sessionId = activeSession.id,
+//                    startTime = taskStartTime,
+//                    date = getCurrentDateFormatted(),
+//                    expectedDuration = maxTaskTime.toIntOrNull() ?: 0,
+//                    isTaskRunning = true
+//                )
+//                repository.insertTaskTimeEntry(newTask)
+//            } else {
+//                // Task is already running
+//                isTaskRunning = true
+//                taskStartTime = activeTask.startTime
+//                taskSeconds = activeTask.duration
+//                updateStateHandle()
+//            }
+//        }
+//    }
+
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun restoreTaskTimerState() {
+        viewModelScope.launch {
+            val activeTask = repository.getActiveTask()
+            if (activeTask != null && activeTask.isTaskRunning) {
+                isTaskRunning = true
+                taskStartTime = activeTask.startTime
+
+                // Ensure taskStartTime is in the correct format with seconds
+                val timeString = if (taskStartTime?.length == 5) "$taskStartTime:00" else taskStartTime
+                val startTime = LocalTime.parse(timeString, formatterWithSeconds)
+
+                val elapsed = Duration.between(startTime, LocalTime.now()).seconds
+                taskSeconds = elapsed + activeTask.duration
+                updateStateHandle()
+
+                Log.d("TimeCardViewModel", "Restored active task with start time $taskStartTime and total elapsed seconds $taskSeconds.")
+            }
+        }
+    }
+
+//    @RequiresApi(Build.VERSION_CODES.O)
+//    fun restoreTaskTimerState() {
+//        viewModelScope.launch {
+//            Log.d("TimeCardViewModel", "Attempting to restore task timer state...")
+//
+//            val activeTask = repository.getActiveTask()
+//            if (activeTask != null) {
+//                Log.d("TimeCardViewModel", "Active task found in database: $activeTask")
+//                Log.d("TimeCardViewModel", "Is task still running: ${activeTask.isTaskRunning}")
+//            } else {
+//                Log.d("TimeCardViewModel", "No active task found in database.")
+//            }
+//
+//            if (activeTask != null && activeTask.isTaskRunning) {
+//                isTaskRunning = true
+//                taskStartTime = activeTask.startTime
+//
+//                Log.d("TimeCardViewModel", "Task start time from database: $taskStartTime")
+//                Log.d("TimeCardViewModel", "Current time: ${LocalTime.now()}")
+//
+//                try {
+//                    val startTime = LocalTime.parse(taskStartTime, DateTimeFormatter.ofPattern("HH:mm"))
+//                    val elapsed = Duration.between(startTime, LocalTime.now()).seconds
+//                    taskSeconds = elapsed + activeTask.duration
+//
+//                    Log.d("TimeCardViewModel", "Calculated elapsed time since task start: $elapsed seconds")
+//                    Log.d("TimeCardViewModel", "Total task seconds including previous duration: $taskSeconds")
+//
+//                    updateStateHandle()
+//                    Log.d("TimeCardViewModel", "Updated state handle with taskRunning = $isTaskRunning, taskSeconds = $taskSeconds")
+//                } catch (e: Exception) {
+//                    Log.e("TimeCardViewModel", "Error parsing start time or calculating duration: ${e.message}", e)
+//                }
+//            } else {
+//                Log.d("TimeCardViewModel", "No running task to restore.")
+//            }
+//        }
+//    }
 
 
 
-    // Function to complete a task
     @RequiresApi(Build.VERSION_CODES.O)
     fun completeTask(context: Context) {
-//        if (!isTaskRunning) {
-//            Log.d("TimeCardViewModel", "No task is running, skipping task completion.")
-//            return
-//        }
+        if (!isTaskRunning) return
 
-        // Calculate end time and lock the duration
         val taskEndTime = getCurrentTimeFormatted()
         val taskDurationSeconds = taskSeconds
+        savedStateHandle["isTaskRunning"] = false
+        savedStateHandle["taskSeconds"] = 0L
 
         viewModelScope.launch {
-            // Get the active task from the repository
-            val activeTask = repository.getActiveTask()
-            if (activeTask == null) {
-                Log.e("TimeCardViewModel", "No active task found to complete.")
-                return@launch
-            }
-
-            // Calculate over/under AET in seconds
-            val expectedDurationSeconds = activeTask.expectedDuration * 60L
-            val overUnderAET = taskDurationSeconds - expectedDurationSeconds
-
-            // Update the task entry with the calculated values
-            val completedTask = activeTask.copy(
+            val activeTask = repository.getActiveTask()?.copy(
                 endTime = taskEndTime,
                 duration = taskDurationSeconds,
-                secondsOverUnderAET = overUnderAET,
                 isTaskRunning = false
             )
-
-            // Update the entry in the database
-            repository.updateTimeEntry(completedTask)
-            Log.d("TimeCardViewModel", "Task completed at $taskEndTime with duration $taskDurationSeconds seconds and over/under AET: $overUnderAET seconds.")
-
-            // Update the associated session's over/under AET sum and number of tasks
-            val activeSession = repository.getActiveSession()
-            activeSession?.let { session ->
-                val updatedSession = session.copy(
-                    totalOverUnderAET = session.totalOverUnderAET + overUnderAET,
-                    numberOfTasks = session.numberOfTasks // This remains the same unless new tasks were added
-                )
-                repository.saveSession(updatedSession)
-                Log.d("TimeCardViewModel", "Updated session with new over/under AET total: ${updatedSession.totalOverUnderAET} seconds.")
-            }
-
-            // Clear the task state
+            activeTask?.let { repository.updateTimeEntry(it) }
             isTaskRunning = false
             taskStartTime = null
-            taskSeconds = 0L // Clear the counter
         }
     }
-
-
 
     // Helper function to format a duration in HH:MM:SS
     fun formatDuration(seconds: Long): String {
@@ -302,16 +487,6 @@ class TimeCardViewModel @Inject constructor(
         }
     }
 
-    // Function to fetch the active session
-    @RequiresApi(Build.VERSION_CODES.O)
-    fun getActiveSession(): Session? {
-        var activeSession: Session? = null
-        viewModelScope.launch {
-            activeSession = repository.getActiveSession()
-            Log.d("TimeCardViewModel", "Active session retrieved: $activeSession")
-        }
-        return activeSession
-    }
     fun toggleSessionSubmission(session: Session) {
         viewModelScope.launch {
             Log.d("TimeCardViewModel", "Toggling session ID ${session.id}, current isSubmitted: ${session.isSubmitted}")
@@ -328,30 +503,6 @@ class TimeCardViewModel @Inject constructor(
             updateTimeEntriesByDay()
         }
     }
-
-
-
-
-
-
-    fun submitSession(session: Session) {
-        viewModelScope.launch {
-            // Update the session's isSubmitted field to true
-            val updatedSession = session.copy(isSubmitted = true)
-            repository.saveSession(updatedSession)
-
-            // Log the submission action for debugging
-            Log.d("TimeCardViewModel", "Session submitted with ID: ${updatedSession.id}")
-
-            // Trigger UI updates if necessary, like refreshing the list of sessions
-            updateTimeEntriesByDay() // Or other appropriate method to update the session list
-        }
-    }
-
-
-
-
-
 
     fun updateTimeEntriesByDay() {
         viewModelScope.launch {

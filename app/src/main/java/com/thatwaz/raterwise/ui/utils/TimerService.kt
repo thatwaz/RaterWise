@@ -8,7 +8,6 @@ import android.content.Intent
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,20 +65,20 @@ class TimerService : Service() {
         }
     }
 
-    // Start task-specific timer
-    fun startTaskTimer() {
+    fun startTaskTimer(initialSeconds: Long = 0L) {
         if (isTaskTimerRunning) return
         isTaskTimerRunning = true
+        taskSeconds = initialSeconds
 
         serviceScope.launch {
             while (isTaskTimerRunning) {
-                delay(1000L) // Update task timer every second
+                delay(1000L)
                 taskSeconds++
-                timerCallback?.onTaskTimeUpdate(taskSeconds) // Notify callback
-                Log.i("DOH","Timer service seconds are $taskSeconds")
+                timerCallback?.onTaskTimeUpdate(taskSeconds)
             }
         }
     }
+
 
     fun stopTaskTimer() {
         isTaskTimerRunning = false
