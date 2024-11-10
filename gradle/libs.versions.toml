@@ -14,6 +14,7 @@ runtimeLivedata = "1.7.2"
 workRuntimeKtx = "2.9.1"
 hiltWork = "1.2.0"
 firebaseCrashlyticsBuildtools = "3.0.2"
+playServicesPal = "20.3.0"
 
 [libraries]
 
@@ -38,6 +39,7 @@ androidx-runtime-livedata = { group = "androidx.compose.runtime", name = "runtim
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntimeKtx" }
 androidx-hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hiltWork" }
 firebase-crashlytics-buildtools = { group = "com.google.firebase", name = "firebase-crashlytics-buildtools", version.ref = "firebaseCrashlyticsBuildtools" }
+play-services-pal = { group = "com.google.android.gms", name = "play-services-pal", version.ref = "playServicesPal" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

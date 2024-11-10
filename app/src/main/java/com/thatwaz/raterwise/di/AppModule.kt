@@ -2,10 +2,7 @@ package com.thatwaz.raterwise.di
 
 import android.content.Context
 import androidx.room.Room
-import com.thatwaz.raterwise.data.local.dao.DailyWorkSummaryDao
-import com.thatwaz.raterwise.data.local.dao.SessionDao
-import com.thatwaz.raterwise.data.local.dao.TaskTimeTrackingDao
-import com.thatwaz.raterwise.data.local.dao.WorkPeriodDao
+import com.thatwaz.raterwise.data.local.dao.TimeTrackingDao
 import com.thatwaz.raterwise.data.local.database.TimeTrackingDatabase
 import com.thatwaz.raterwise.data.repository.TimeTrackingRepository
 import com.thatwaz.raterwise.data.repository.TimeTrackingRepositoryImpl
@@ -24,16 +21,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideTimeTrackingRepository(
-        taskTimeTrackingDao: TaskTimeTrackingDao,
-        sessionDao: SessionDao,
-        workPeriodDao: WorkPeriodDao,
-        dailyWorkSummaryDao: DailyWorkSummaryDao
+        timeTrackingDao: TimeTrackingDao
     ): TimeTrackingRepository {
         return TimeTrackingRepositoryImpl(
-            taskTimeTrackingDao = taskTimeTrackingDao,
-            sessionDao = sessionDao,
-            workPeriodDao = workPeriodDao,
-            dailyWorkSummaryDao = dailyWorkSummaryDao
+            timeTrackingDao = timeTrackingDao
         )
     }
 
@@ -51,28 +42,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideTaskTimeTrackingDao(database: TimeTrackingDatabase): TaskTimeTrackingDao {
-        return database.taskTimeTrackingDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideSessionDao(database: TimeTrackingDatabase): SessionDao {
-        return database.sessionDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideWorkPeriodDao(database: TimeTrackingDatabase): WorkPeriodDao {
-        return database.workPeriodDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideDailyWorkSummaryDao(database: TimeTrackingDatabase): DailyWorkSummaryDao {
-        return database.dailyWorkSummaryDao()
+    fun provideTimeTrackingDao(database: TimeTrackingDatabase): TimeTrackingDao {
+        return database.timeTrackingDao()
     }
 }
+
 
 //@Module
 //@InstallIn(SingletonComponent::class)

@@ -6,9 +6,9 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.thatwaz.raterwise.data.model.Session
 import com.thatwaz.raterwise.data.model.TaskTimeEntry
 import kotlinx.coroutines.flow.Flow
-
 
 
 @Dao
@@ -25,6 +25,18 @@ interface TaskTimeTrackingDao {
     // Retrieve all task time entries
     @Query("SELECT * FROM task_time_entries")
     fun getAllTaskTimeEntries(): Flow<List<TaskTimeEntry>>
+
+    @Query("DELETE FROM session WHERE date = :date")
+    suspend fun deleteEntriesForDate(date: String)
+
+//    @Query("SELECT * FROM session ORDER BY date DESC")
+//    suspend fun getTimeEntriesByDay(): Map<String, List<TaskTimeEntry>>
+
+    @Query("SELECT * FROM session")
+    suspend fun getSessions(): List<Session>
+
+    @Query("SELECT * FROM task_time_entries WHERE sessionId = :sessionId")
+    suspend fun getTasksForSession(sessionId: Int): List<TaskTimeEntry>
 
     // Update an existing task time entry
     @Update
@@ -44,7 +56,7 @@ interface TaskTimeTrackingDao {
 
     // New: Retrieve tasks by session ID (if session tracking is needed)
     @Query("SELECT * FROM task_time_entries WHERE sessionId = :sessionId")
-    fun getTasksBySessionId(sessionId: Int): Flow<List<TaskTimeEntry>>
+    fun getTasksBySessionId(sessionId: Long): Flow<List<TaskTimeEntry>>
 }
 
 //@Dao

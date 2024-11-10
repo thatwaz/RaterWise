@@ -32,7 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.thatwaz.raterwise.data.model.Session
+import com.thatwaz.raterwise.data.model.SessionWithTasks
 import com.thatwaz.raterwise.ui.viewmodel.TimeCardViewModel
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -86,15 +86,16 @@ fun DailyTimeEntriesScreen(
                     )
                 }
 
-                items(unsubmittedSessions) { session ->
+                items(unsubmittedSessions) { sessionWithTasks ->
                     SessionItem(
-                        session = session,
-                        onCheckChanged = { updatedSession ->
-                            Log.d("SessionToggle", "Toggling session: $updatedSession")
-                            viewModel.toggleSessionSubmission(updatedSession)
+                        sessionWithTasks = sessionWithTasks,
+                        onCheckChanged = { updatedSessionWithTasks ->
+                            Log.d("SessionToggle", "Toggling session: $updatedSessionWithTasks")
+                            viewModel.toggleSessionSubmission(updatedSessionWithTasks)
                         }
                     )
                 }
+
 
                 item {
                     Text(
@@ -106,12 +107,13 @@ fun DailyTimeEntriesScreen(
 
                 items(submittedSessions) { session ->
                     SessionItem(
-                        session = session,
-                        onCheckChanged = { updatedSession ->
-                            Log.d("SessionToggle", "Toggling session: $updatedSession")
-                            viewModel.toggleSessionSubmission(updatedSession)
+                        sessionWithTasks = session,  // Update to match the parameter name
+                        onCheckChanged = { updatedSessionWithTasks ->
+                            Log.d("SessionToggle", "Toggling session: $updatedSessionWithTasks")
+                            viewModel.toggleSessionSubmission(updatedSessionWithTasks)
                         }
                     )
+
                 }
             }
         }
@@ -119,8 +121,9 @@ fun DailyTimeEntriesScreen(
 }
 
 @Composable
-fun SessionItem(session: Session, onCheckChanged: ((Session) -> Unit)?) {
-    val isCheckedState = rememberUpdatedState(session.isSubmitted)
+fun SessionItem(sessionWithTasks: SessionWithTasks, onCheckChanged: ((SessionWithTasks) -> Unit)?) {
+    // Remember the current `isSubmitted` status
+    val isCheckedState = rememberUpdatedState(sessionWithTasks.isSubmitted)
 
     Row(
         modifier = Modifier
@@ -132,26 +135,30 @@ fun SessionItem(session: Session, onCheckChanged: ((Session) -> Unit)?) {
         Column(modifier = Modifier.weight(1f)) {
             // Display session start and end times
             Text(
-                text = "Start: ${session.clockInTime} - End: ${session.clockOutTime}",
+                text = "Start: ${sessionWithTasks.clockInTime} - End: ${sessionWithTasks.clockOutTime}",
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                text = if (session.isSubmitted) "Status: Submitted" else "Status: Not Submitted",
+                text = if (sessionWithTasks.isSubmitted) "Status: Submitted" else "Status: Not Submitted",
                 style = MaterialTheme.typography.bodySmall
             )
         }
 
+        // Checkbox to toggle submission status
         Checkbox(
             checked = isCheckedState.value,
             onCheckedChange = { isCheckedNow ->
-                if (session.isSubmitted != isCheckedNow) {
-                    onCheckChanged?.invoke(session.copy(isSubmitted = isCheckedNow))
+                if (sessionWithTasks.isSubmitted != isCheckedNow) {
+                    // Create a new `SessionWithTasks` with the updated `isSubmitted` status
+                    val updatedSession = sessionWithTasks.copy(isSubmitted = isCheckedNow)
+                    onCheckChanged?.invoke(updatedSession)
                 }
             },
             enabled = onCheckChanged != null
         )
     }
 }
+
 
 //@RequiresApi(Build.VERSION_CODES.O)
 //@OptIn(ExperimentalMaterial3Api::class)

@@ -5,29 +5,21 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.thatwaz.raterwise.data.local.Converters
-import com.thatwaz.raterwise.data.local.dao.DailyWorkSummaryDao
-import com.thatwaz.raterwise.data.local.dao.SessionDao
-import com.thatwaz.raterwise.data.local.dao.TaskTimeTrackingDao
-import com.thatwaz.raterwise.data.local.dao.WorkPeriodDao
-import com.thatwaz.raterwise.data.model.DailyWorkSummary
-import com.thatwaz.raterwise.data.model.Session
-import com.thatwaz.raterwise.data.model.TaskTimeEntry
-import com.thatwaz.raterwise.data.model.WorkPeriod
-
+import com.thatwaz.raterwise.data.local.dao.TimeTrackingDao
+import com.thatwaz.raterwise.data.model.SessionWithTasks
+import com.thatwaz.raterwise.data.model.TaskEntry
 
 @Database(
-    entities = [TaskTimeEntry::class, DailyWorkSummary::class, WorkPeriod::class, Session::class],
-    version = 10,
+    entities = [SessionWithTasks::class, TaskEntry::class],
+    version = 13,
     exportSchema = false
 )
-@TypeConverters(Converters::class) // Use the Converters class for handling complex types
+@TypeConverters(Converters::class) // Attach converters here
 abstract class TimeTrackingDatabase : RoomDatabase() {
 
-    abstract fun taskTimeTrackingDao(): TaskTimeTrackingDao
-    abstract fun sessionDao(): SessionDao
-    abstract fun workPeriodDao(): WorkPeriodDao
-    abstract fun dailyWorkSummaryDao(): DailyWorkSummaryDao
+    abstract fun timeTrackingDao(): TimeTrackingDao
 }
+
 
 
 //@Database(
