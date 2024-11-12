@@ -6,58 +6,58 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
-import com.thatwaz.raterwise.data.model.Session
-import com.thatwaz.raterwise.data.model.TaskTimeEntry
+
+
 import kotlinx.coroutines.flow.Flow
 
 
-@Dao
-interface TaskTimeTrackingDao {
-
-    // Retrieve all tasks for a specific date
-    @Query("SELECT * FROM task_time_entries WHERE date = :date")
-    fun getTaskTimeEntriesByDate(date: String): Flow<List<TaskTimeEntry>>
-
-    // Insert a new task time entry
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTaskTimeEntry(taskTimeEntry: TaskTimeEntry): Long
-
-    // Retrieve all task time entries
-    @Query("SELECT * FROM task_time_entries")
-    fun getAllTaskTimeEntries(): Flow<List<TaskTimeEntry>>
-
-    @Query("DELETE FROM session WHERE date = :date")
-    suspend fun deleteEntriesForDate(date: String)
-
-//    @Query("SELECT * FROM session ORDER BY date DESC")
-//    suspend fun getTimeEntriesByDay(): Map<String, List<TaskTimeEntry>>
-
-    @Query("SELECT * FROM session")
-    suspend fun getSessions(): List<Session>
-
-    @Query("SELECT * FROM task_time_entries WHERE sessionId = :sessionId")
-    suspend fun getTasksForSession(sessionId: Int): List<TaskTimeEntry>
-
-    // Update an existing task time entry
-    @Update
-    suspend fun updateTaskTimeEntry(taskTimeEntry: TaskTimeEntry)
-
-    // Retrieve the active running task
-    @Query("SELECT * FROM task_time_entries WHERE isTaskRunning = 1 LIMIT 1")
-    suspend fun getActiveTask(): TaskTimeEntry?
-
-    // Delete a specific task time entry
-    @Delete
-    suspend fun deleteTaskTimeEntry(taskTimeEntry: TaskTimeEntry)
-
-    // Clear all task time entries
-    @Query("DELETE FROM task_time_entries")
-    suspend fun deleteAllTaskTimeEntries()
-
-    // New: Retrieve tasks by session ID (if session tracking is needed)
-    @Query("SELECT * FROM task_time_entries WHERE sessionId = :sessionId")
-    fun getTasksBySessionId(sessionId: Long): Flow<List<TaskTimeEntry>>
-}
+//@Dao
+//interface TaskTimeTrackingDao {
+//
+//    // Retrieve all tasks for a specific date
+//    @Query("SELECT * FROM task_time_entries WHERE date = :date")
+//    fun getTaskTimeEntriesByDate(date: String): Flow<List<TaskTimeEntry>>
+//
+//    // Insert a new task time entry
+//    @Insert(onConflict = OnConflictStrategy.REPLACE)
+//    suspend fun insertTaskTimeEntry(taskTimeEntry: TaskTimeEntry): Long
+//
+//    // Retrieve all task time entries
+//    @Query("SELECT * FROM task_time_entries")
+//    fun getAllTaskTimeEntries(): Flow<List<TaskTimeEntry>>
+//
+//    @Query("DELETE FROM session WHERE date = :date")
+//    suspend fun deleteEntriesForDate(date: String)
+//
+////    @Query("SELECT * FROM session ORDER BY date DESC")
+////    suspend fun getTimeEntriesByDay(): Map<String, List<TaskTimeEntry>>
+//
+//    @Query("SELECT * FROM session")
+//    suspend fun getSessions(): List<Session>
+//
+//    @Query("SELECT * FROM task_time_entries WHERE sessionId = :sessionId")
+//    suspend fun getTasksForSession(sessionId: Int): List<TaskTimeEntry>
+//
+//    // Update an existing task time entry
+//    @Update
+//    suspend fun updateTaskTimeEntry(taskTimeEntry: TaskTimeEntry)
+//
+//    // Retrieve the active running task
+//    @Query("SELECT * FROM task_time_entries WHERE isTaskRunning = 1 LIMIT 1")
+//    suspend fun getActiveTask(): TaskTimeEntry?
+//
+//    // Delete a specific task time entry
+//    @Delete
+//    suspend fun deleteTaskTimeEntry(taskTimeEntry: TaskTimeEntry)
+//
+//    // Clear all task time entries
+//    @Query("DELETE FROM task_time_entries")
+//    suspend fun deleteAllTaskTimeEntries()
+//
+//    // New: Retrieve tasks by session ID (if session tracking is needed)
+//    @Query("SELECT * FROM task_time_entries WHERE sessionId = :sessionId")
+//    fun getTasksBySessionId(sessionId: Long): Flow<List<TaskTimeEntry>>
+//}
 
 //@Dao
 //interface TaskTimeTrackingDao {

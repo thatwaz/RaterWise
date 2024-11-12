@@ -46,16 +46,31 @@ fun TimeCardScreen(navController: NavController, viewModel: TimeCardViewModel = 
 
     val allEntries = currentWeekEntries.values.flatten()
 // Calculate total work time and over/under AET for the week
+    // Calculate total work time and over/under AET for the week
     val totalSecondsForWeek = allEntries.sumOf { it.session.totalWorkTime.coerceAtLeast(0) }
     val numberOfTasksForWeek = allEntries.sumOf { it.session.numberOfTasks }
-
-    val totalOverUnderAETForWeek = allEntries.sumOf { it.taskEntries.sumOf { task -> task.secondsOverUnderAET } }
+    val totalOverUnderAETForWeek = allEntries.sumOf { it.session.totalOverUnderAET }
 
     // Format the weekly summary text
     val hoursForWeek = totalSecondsForWeek / 3600
     val minutesForWeek = (totalSecondsForWeek % 3600) / 60
     val weeklyDurationText = if (hoursForWeek > 0L) "$hoursForWeek hr $minutesForWeek min" else "$minutesForWeek min"
     val weeklyOverUnderText = "${totalOverUnderAETForWeek / 60} min"
+
+    Log.d("TimeCardScreen", "Weekly Over/Under AET: $totalOverUnderAETForWeek seconds, Display: $weeklyOverUnderText")
+//    val totalSecondsForWeek = allEntries.sumOf { it.session.totalWorkTime.coerceAtLeast(0) }
+//    val numberOfTasksForWeek = allEntries.sumOf { it.session.numberOfTasks }
+//
+//    val totalOverUnderAETForWeek = allEntries.sumOf { it.taskEntries.sumOf { task -> task.secondsOverUnderAET } }
+//
+//    // Format the weekly summary text
+//    val hoursForWeek = totalSecondsForWeek / 3600
+//    val minutesForWeek = (totalSecondsForWeek % 3600) / 60
+//    val weeklyDurationText = if (hoursForWeek > 0L) "$hoursForWeek hr $minutesForWeek min" else "$minutesForWeek min"
+//    val weeklyOverUnderText = "${totalOverUnderAETForWeek / 60} min"
+////    val weeklyOverUnderText = "${totalOverUnderAETForWeek / 60} min"
+//    Log.d("TimeCardScreen", "Weekly Over/Under Text: $weeklyOverUnderText")
+
 
     LazyColumn(
         modifier = Modifier

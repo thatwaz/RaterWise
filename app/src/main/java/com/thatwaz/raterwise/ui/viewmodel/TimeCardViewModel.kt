@@ -48,10 +48,18 @@ class TimeCardViewModel @Inject constructor(
     private val _clockInTime = MutableStateFlow(savedStateHandle["clockInTime"] ?: "Not Clocked In")
     val clockInTime: StateFlow<String> = _clockInTime
 
-//    var clockInTime: String? = savedStateHandle["clockInTime"]
     var taskStartTime: String? = savedStateHandle["taskStartTime"]
 
-    var expectedDuration by mutableStateOf(0) // Default to 0
+    var expectedTaskDuration by mutableStateOf(savedStateHandle["expectedTaskDuration"] ?: 0L) // Default to 0L
+        private set
+
+
+    // Max allowed time per task (added for session restore)
+//    var maxTaskTime by mutableStateOf(savedStateHandle["maxTaskTime"] ?: 0L)
+//        private set
+
+    // Over/Under AET calculation (added to record total over/under time)
+    var totalOverUnderAET by mutableStateOf(savedStateHandle["totalOverUnderAET"] ?: 0L)
         private set
 
     var currentSessionId: Long by mutableStateOf(savedStateHandle["currentSessionId"] ?: 0L)
@@ -157,21 +165,30 @@ class TimeCardViewModel @Inject constructor(
         return currentDate.format(formatter)
     }
 
+    // might need to alter name for expected task duration
     fun updateMaxTaskTime(maxTaskTime: String) {
-        expectedDuration = maxTaskTime.toIntOrNull() ?: 0
-        savedStateHandle["expectedDuration"] = expectedDuration
-        Log.d("TimeCardViewModel", "Updated maxTaskTime to $maxTaskTime")
+        val taskDurationAsLong = maxTaskTime.toLongOrNull() ?: 0L // Convert to Long with default
+        expectedTaskDuration = taskDurationAsLong // Set the updated duration
+        savedStateHandle["expectedTaskDuration"] = taskDurationAsLong // Use correct key in savedStateHandle
+
+        Log.d("TimeCardViewModel", "Updated maxTaskTime to $taskDurationAsLong minutes")
     }
 
+
     @RequiresApi(Build.VERSION_CODES.O)
-    fun startTask(context: Context) {
+    fun startTask(context: Context, duration: Int) { // Pass expected duration as Int in minutes
         if (!isClockedIn.value || isTaskRunning) {
             Log.e("TimeCardViewModel", "Cannot start a new task.")
             return
         }
 
+        // Set task start parameters
         isTaskRunning = true
         taskStartTime = getCurrentTimeFormattedWithSeconds()
+        val taskDurationInSeconds = duration * 60L // Convert minutes to seconds
+        expectedTaskDuration = taskDurationInSeconds // Set expected duration in seconds
+        savedStateHandle["expectedTaskDuration"] = taskDurationInSeconds // Save to savedStateHandle
+
         savedStateHandle["isTaskRunning"] = isTaskRunning
         savedStateHandle["taskStartTime"] = taskStartTime
 
@@ -182,13 +199,18 @@ class TimeCardViewModel @Inject constructor(
             }
             val updatedSession = repository.getSessionWithTasksById(sessionId)?.copy(
                 isTaskRunning = isTaskRunning,
-                taskStartTime = taskStartTime
+                taskStartTime = taskStartTime,
+                expectedTaskDuration = taskDurationInSeconds // Store in session in seconds
             )
             updatedSession?.let { repository.updateSessionWithTasks(it) }
-            Log.d("TimeCardViewModel", "Started task at $taskStartTime, session updated with isTaskRunning: $isTaskRunning")
+            Log.d("TimeCardViewModel", "Started task at $taskStartTime with expected duration $taskDurationInSeconds seconds, session updated with isTaskRunning: $isTaskRunning")
         }
-
     }
+
+
+
+
+
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun getCurrentTimeFormattedWithSeconds(): String {
@@ -196,29 +218,81 @@ class TimeCardViewModel @Inject constructor(
         return LocalTime.now().format(formatter)
     }
 
-
-    fun completeTask(context: Context, expectedDuration: Int) {
+    fun completeTask(context: Context) {
         if (!isTaskRunning) return
 
-        val taskEndTime = getCurrentTimeFormatted()
-        val taskDuration = taskSeconds
-        isTaskRunning = false
-        taskSeconds = 0L
-        taskStartTime = null
-        savedStateHandle["isTaskRunning"] = isTaskRunning
-        savedStateHandle["taskSeconds"] = taskSeconds
+        // Calculate actual duration
+        val actualDuration = taskSeconds
+        val overUnderAET = actualDuration - expectedTaskDuration
 
+        // Update the task and session in the database
         viewModelScope.launch {
             val sessionId = currentSessionId
-            val updatedSession = repository.getSessionWithTasksById(sessionId)?.copy(
-                isTaskRunning = isTaskRunning,
-                taskSeconds = taskSeconds,
-                taskStartTime = taskStartTime
-            )
-            updatedSession?.let { repository.updateSessionWithTasks(it) }
-            Log.d("TimeCardViewModel", "Completed task, session updated with isTaskRunning: $isTaskRunning, taskSeconds: $taskSeconds")
+            val session = repository.getSessionWithTasksById(sessionId)
+            session?.let {
+                val updatedSession = it.copy(
+                    isTaskRunning = false,
+                    taskSeconds = 0L,
+                    numberOfTasks = it.numberOfTasks + 1,  // Increment task count
+                    totalOverUnderAET = it.totalOverUnderAET + overUnderAET // Update AET
+                )
+                repository.updateSessionWithTasks(updatedSession)
+                Log.d("TimeCardViewModel", "Completed task. Task count: ${updatedSession.numberOfTasks}, Over/Under AET: ${updatedSession.totalOverUnderAET}")
+            }
         }
+
+        isTaskRunning = false
+        taskSeconds = 0L
     }
+
+
+//
+//    @RequiresApi(Build.VERSION_CODES.O)
+//    fun completeTask(context: Context) {
+//        if (!isTaskRunning) return
+//
+//        // Capture the actual time of task completion
+//        val taskEndTime = LocalTime.now()
+//        val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+//        val startTime = LocalTime.parse(taskStartTime, formatter)
+//        val actualDuration = Duration.between(startTime, taskEndTime).seconds
+//
+//        // Calculate over/under AET in seconds
+//        val overUnderAET = actualDuration - expectedTaskDuration
+//
+//        // Reset task status
+//        isTaskRunning = false
+//        taskSeconds = 0L
+//        taskStartTime = null
+//        savedStateHandle["isTaskRunning"] = isTaskRunning
+//        savedStateHandle["taskSeconds"] = taskSeconds
+//
+//        viewModelScope.launch {
+//            val sessionId = currentSessionId ?: run {
+//                Log.e("TimeCardViewModel", "No active session found to complete task.")
+//                return@launch
+//            }
+//
+//            val updatedSession = repository.getSessionWithTasksById(sessionId)?.let {
+//                it.copy(
+//                    isTaskRunning = false,
+//                    taskSeconds = 0L,
+//                    taskStartTime = null,
+//                    totalOverUnderAET = it.totalOverUnderAET + overUnderAET // Accumulate over/under AET
+//                )
+//            }
+//
+//            updatedSession?.let { repository.updateSessionWithTasks(it) }
+//            Log.d(
+//                "TimeCardViewModel",
+//                "Completed task with actual duration $actualDuration seconds, " +
+//                        "expected duration $expectedTaskDuration seconds, " +
+//                        "overUnderAET $overUnderAET seconds. " +
+//                        "Total over/under AET for session: ${updatedSession?.totalOverUnderAET} seconds."
+//            )
+//        }
+//    }
+
 
 
 
@@ -237,6 +311,10 @@ class TimeCardViewModel @Inject constructor(
             Log.d("TimeCardViewModel", "Loaded current week entries: $groupedEntries")
             Log.d("TimeCardViewModel", "Loading sessions from $startDate to $endDate")
             Log.d("TimeCardViewModel", "Calculated week range: $startDate to $endDate")
+
+            weeklyEntries.forEach { entry ->
+                Log.d("TimeCardViewModel", "Session on ${entry.session.date} - Tasks: ${entry.session.numberOfTasks}, Total Over/Under AET: ${entry.session.totalOverUnderAET}")
+            }
 
         }
     }
@@ -295,7 +373,6 @@ class TimeCardViewModel @Inject constructor(
         return endOfWeek.toString()
     }
 
-
     @RequiresApi(Build.VERSION_CODES.O)
     fun restoreSessionState() {
         viewModelScope.launch {
@@ -307,10 +384,14 @@ class TimeCardViewModel @Inject constructor(
                 _isClockedIn.value = it.isClockedIn
                 taskStartTime = it.taskStartTime
                 taskSeconds = it.taskSeconds
+                expectedTaskDuration = it.expectedTaskDuration // Restore the expected task duration
 
                 val restoredClockInTime = it.clockInTime ?: "Not Clocked In"
                 _clockInTime.value = restoredClockInTime
                 savedStateHandle["clockInTime"] = restoredClockInTime
+
+                // Restore task duration state
+                savedStateHandle["expectedTaskDuration"] = expectedTaskDuration
 
                 if (isTaskRunning && taskStartTime != null) {
                     val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
@@ -325,10 +406,14 @@ class TimeCardViewModel @Inject constructor(
                 savedStateHandle["isTaskRunning"] = isTaskRunning
                 savedStateHandle["taskStartTime"] = taskStartTime
 
-                Log.d("TimeCardViewModel", "Restored session state - currentSessionId: $currentSessionId, isTaskRunning: $isTaskRunning, taskSeconds: $taskSeconds, taskStartTime: $taskStartTime, clockInTime: $restoredClockInTime")
+                Log.d(
+                    "TimeCardViewModel",
+                    "Restored session state - currentSessionId: $currentSessionId, isTaskRunning: $isTaskRunning, taskSeconds: $taskSeconds, taskStartTime: $taskStartTime, clockInTime: $restoredClockInTime, expectedTaskDuration: $expectedTaskDuration"
+                )
             } ?: Log.d("TimeCardViewModel", "No session to restore.")
         }
     }
+
 
 
 

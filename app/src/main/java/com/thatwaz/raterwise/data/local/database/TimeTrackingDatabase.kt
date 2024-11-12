@@ -11,7 +11,7 @@ import com.thatwaz.raterwise.data.model.TaskEntry
 
 @Database(
     entities = [SessionWithTasks::class, TaskEntry::class],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(Converters::class) // Attach converters here

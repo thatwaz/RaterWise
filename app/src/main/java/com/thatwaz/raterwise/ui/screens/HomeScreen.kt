@@ -196,17 +196,17 @@ fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean, co
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Quick Task Start Buttons (1-12 minutes)
             QuickTaskButtons(
                 onSelect = { selectedMinutes ->
                     maxTaskTime = selectedMinutes.toString()
                     viewModel.updateMaxTaskTime(maxTaskTime) // Call viewModel method
-                    viewModel.startTask(context) // Start task and service once
+                    viewModel.startTask(context, selectedMinutes) // Pass duration as selectedMinutes
                 },
                 selectedMinute = selectedMinute,
                 setSelectedMinute = { selectedMinute = it },
                 viewModel = viewModel // Pass the viewModel
             )
+
 
             // Task Timer Controls
             TaskTimerControls(
@@ -216,7 +216,7 @@ fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean, co
 //                onTaskStart = { /* No direct call to startTask here */ },
                 onTaskFinish = {
                     Log.d("Composable", "onTaskFinish invoked.")
-                    viewModel.completeTask(context, viewModel.expectedDuration)
+                    viewModel.completeTask(context)
 //                    viewModel.stopForegroundService(context)
                 },
                 contentModifier = Modifier.padding(16.dp)
@@ -549,7 +549,7 @@ fun TaskTimerControls(
             Button(
                 onClick = {
                     Log.d("TaskTimerControls", "Finish Task button clicked")
-                    viewModel.completeTask(context, viewModel.expectedDuration)
+                    viewModel.completeTask(context)
                     onTaskFinish()
                 },
                 modifier = Modifier.fillMaxWidth(),

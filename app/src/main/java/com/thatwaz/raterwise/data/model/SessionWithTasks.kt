@@ -16,7 +16,8 @@ data class SessionWithTasks(
     val isSubmitted: Boolean = false, // Indicates if the session has been submitted
     val isTaskRunning: Boolean = false, // Indicates if a task is currently active in the session
     val taskSeconds: Long = 0L, // Seconds elapsed for the current task
-    val taskStartTime: String? = null // Start time of the current task
+    val taskStartTime: String? = null, // Start time of the current task
+    val expectedTaskDuration: Long = 0L
 )
 
 
