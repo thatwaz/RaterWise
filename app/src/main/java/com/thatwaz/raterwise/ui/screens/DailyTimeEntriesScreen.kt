@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -26,7 +28,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -43,9 +44,11 @@ fun DailyTimeEntriesScreen(
     navController: NavController,
     viewModel: TimeCardViewModel = hiltViewModel()
 ) {
+    // Collecting the state for sessions on the specific date
     val timeEntriesByDay by viewModel.timeEntriesByDay.collectAsState()
     val sessions = timeEntriesByDay[date] ?: emptyList()
 
+    // Separate sessions into unsubmitted and submitted lists
     val unsubmittedSessions = sessions.filter { !it.isSubmitted }
     val submittedSessions = sessions.filter { it.isSubmitted }
 
@@ -68,6 +71,7 @@ fun DailyTimeEntriesScreen(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
+            // Temporary button to delete all sessions (optional, for testing)
             Button(
                 onClick = { viewModel.deleteAllSessions() },
                 modifier = Modifier
@@ -77,7 +81,11 @@ fun DailyTimeEntriesScreen(
                 Text("Delete All Sessions (Temp Button)")
             }
 
-            LazyColumn {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Header for Unsubmitted Sessions
                 item {
                     Text(
                         text = "Unsubmitted Sessions",
@@ -86,17 +94,32 @@ fun DailyTimeEntriesScreen(
                     )
                 }
 
-                items(unsubmittedSessions) { sessionWithTasks ->
-                    SessionItem(
-                        sessionWithTasks = sessionWithTasks,
-                        onCheckChanged = { updatedSessionWithTasks ->
-                            Log.d("SessionToggle", "Toggling session: $updatedSessionWithTasks")
-                            viewModel.toggleSessionSubmission(updatedSessionWithTasks)
-                        }
-                    )
+                // List of Unsubmitted Sessions
+                if (unsubmittedSessions.isNotEmpty()) {
+                    items(unsubmittedSessions, key = { it.sessionId }) { sessionWithTasks ->
+                        SessionItem(
+                            sessionWithTasks = sessionWithTasks,
+                            onCheckChanged = { updatedSessionWithTasks, isChecked ->
+                                Log.d(
+                                    "SessionToggle",
+                                    "Toggling session: $updatedSessionWithTasks to isSubmitted=$isChecked"
+                                )
+                                viewModel.toggleSessionSubmission(updatedSessionWithTasks, isChecked)
+                            }
+                        )
+                    }
+                } else {
+                    // Empty state for Unsubmitted Sessions
+                    item {
+                        Text(
+                            text = "No unsubmitted sessions available.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
                 }
 
-
+                // Header for Submitted Sessions
                 item {
                     Text(
                         text = "Submitted Sessions",
@@ -105,15 +128,29 @@ fun DailyTimeEntriesScreen(
                     )
                 }
 
-                items(submittedSessions) { session ->
-                    SessionItem(
-                        sessionWithTasks = session,  // Update to match the parameter name
-                        onCheckChanged = { updatedSessionWithTasks ->
-                            Log.d("SessionToggle", "Toggling session: $updatedSessionWithTasks")
-                            viewModel.toggleSessionSubmission(updatedSessionWithTasks)
-                        }
-                    )
-
+                // List of Submitted Sessions
+                if (submittedSessions.isNotEmpty()) {
+                    items(submittedSessions, key = { it.sessionId }) { sessionWithTasks ->
+                        SessionItem(
+                            sessionWithTasks = sessionWithTasks,
+                            onCheckChanged = { updatedSessionWithTasks, isChecked ->
+                                Log.d(
+                                    "SessionToggle",
+                                    "Toggling session: $updatedSessionWithTasks to isSubmitted=$isChecked"
+                                )
+                                viewModel.toggleSessionSubmission(updatedSessionWithTasks, isChecked)
+                            }
+                        )
+                    }
+                } else {
+                    // Empty state for Submitted Sessions
+                    item {
+                        Text(
+                            text = "No submitted sessions available.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
                 }
             }
         }
@@ -121,43 +158,45 @@ fun DailyTimeEntriesScreen(
 }
 
 @Composable
-fun SessionItem(sessionWithTasks: SessionWithTasks, onCheckChanged: ((SessionWithTasks) -> Unit)?) {
-    // Remember the current `isSubmitted` status
-    val isCheckedState = rememberUpdatedState(sessionWithTasks.isSubmitted)
-
-    Row(
+fun SessionItem(sessionWithTasks: SessionWithTasks, onCheckChanged: ((SessionWithTasks, Boolean) -> Unit)?) {
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        elevation = CardDefaults.cardElevation(4.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            // Display session start and end times
-            Text(
-                text = "Start: ${sessionWithTasks.clockInTime} - End: ${sessionWithTasks.clockOutTime}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                text = if (sessionWithTasks.isSubmitted) "Status: Submitted" else "Status: Not Submitted",
-                style = MaterialTheme.typography.bodySmall
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Start: ${sessionWithTasks.clockInTime} - End: ${sessionWithTasks.clockOutTime}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = if (sessionWithTasks.isSubmitted) "Status: Submitted" else "Status: Not Submitted",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            Checkbox(
+                checked = sessionWithTasks.isSubmitted,
+                onCheckedChange = { isCheckedNow ->
+                    onCheckChanged?.invoke(sessionWithTasks, isCheckedNow)
+                },
+                enabled = onCheckChanged != null
             )
         }
-
-        // Checkbox to toggle submission status
-        Checkbox(
-            checked = isCheckedState.value,
-            onCheckedChange = { isCheckedNow ->
-                if (sessionWithTasks.isSubmitted != isCheckedNow) {
-                    // Create a new `SessionWithTasks` with the updated `isSubmitted` status
-                    val updatedSession = sessionWithTasks.copy(isSubmitted = isCheckedNow)
-                    onCheckChanged?.invoke(updatedSession)
-                }
-            },
-            enabled = onCheckChanged != null
-        )
     }
 }
+
+
+
+
 
 
 //@RequiresApi(Build.VERSION_CODES.O)

@@ -175,6 +175,8 @@ class TimeCardViewModel @Inject constructor(
     }
 
 
+
+
     @RequiresApi(Build.VERSION_CODES.O)
     fun startTask(context: Context, duration: Int) { // Pass expected duration as Int in minutes
         if (!isClockedIn.value || isTaskRunning) {
@@ -244,57 +246,6 @@ class TimeCardViewModel @Inject constructor(
         isTaskRunning = false
         taskSeconds = 0L
     }
-
-
-//
-//    @RequiresApi(Build.VERSION_CODES.O)
-//    fun completeTask(context: Context) {
-//        if (!isTaskRunning) return
-//
-//        // Capture the actual time of task completion
-//        val taskEndTime = LocalTime.now()
-//        val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
-//        val startTime = LocalTime.parse(taskStartTime, formatter)
-//        val actualDuration = Duration.between(startTime, taskEndTime).seconds
-//
-//        // Calculate over/under AET in seconds
-//        val overUnderAET = actualDuration - expectedTaskDuration
-//
-//        // Reset task status
-//        isTaskRunning = false
-//        taskSeconds = 0L
-//        taskStartTime = null
-//        savedStateHandle["isTaskRunning"] = isTaskRunning
-//        savedStateHandle["taskSeconds"] = taskSeconds
-//
-//        viewModelScope.launch {
-//            val sessionId = currentSessionId ?: run {
-//                Log.e("TimeCardViewModel", "No active session found to complete task.")
-//                return@launch
-//            }
-//
-//            val updatedSession = repository.getSessionWithTasksById(sessionId)?.let {
-//                it.copy(
-//                    isTaskRunning = false,
-//                    taskSeconds = 0L,
-//                    taskStartTime = null,
-//                    totalOverUnderAET = it.totalOverUnderAET + overUnderAET // Accumulate over/under AET
-//                )
-//            }
-//
-//            updatedSession?.let { repository.updateSessionWithTasks(it) }
-//            Log.d(
-//                "TimeCardViewModel",
-//                "Completed task with actual duration $actualDuration seconds, " +
-//                        "expected duration $expectedTaskDuration seconds, " +
-//                        "overUnderAET $overUnderAET seconds. " +
-//                        "Total over/under AET for session: ${updatedSession?.totalOverUnderAET} seconds."
-//            )
-//        }
-//    }
-
-
-
 
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -433,23 +384,62 @@ class TimeCardViewModel @Inject constructor(
         }
     }
 
-
-    fun toggleSessionSubmission(sessionWithTasks: SessionWithTasks) {
+    fun toggleSessionSubmission(sessionWithTasks: SessionWithTasks, isChecked: Boolean) {
         viewModelScope.launch {
-            Log.d("TimeCardViewModel", "Toggling session ID ${sessionWithTasks.sessionId}, current isSubmitted: ${sessionWithTasks.isSubmitted}")
+            Log.d("ViewModel", "Before toggle: $sessionWithTasks")
+            val updatedSession = sessionWithTasks.copy(isSubmitted = isChecked)
+            Log.d("ViewModel", "After toggle: $updatedSession")
 
-            // Toggle the `isSubmitted` property
-            val updatedSession = sessionWithTasks.copy(isSubmitted = !sessionWithTasks.isSubmitted)
-
-            // Save the updated session to the repository
             repository.updateSessionWithTasks(updatedSession)
 
-            Log.d("TimeCardViewModel", "Updated session ID ${updatedSession.sessionId}, new isSubmitted: ${updatedSession.isSubmitted}")
-
-            // Refresh the sessions from the database
-            updateTimeEntriesByDay()
+            // Refresh the state
+            val updatedSessions = repository.getSessionsGroupedByDate()
+            Log.d("ViewModel", "Updated sessions after toggle: $updatedSessions")
+            _timeEntriesByDay.value = updatedSessions
         }
     }
+
+
+
+//    fun toggleSessionSubmission(sessionWithTasks: SessionWithTasks) {
+//        viewModelScope.launch {
+//            Log.d("ViewModel", "Toggling submission for session ID: ${sessionWithTasks.sessionId}")
+//
+//            // Toggle the `isSubmitted` property
+//            val updatedSession = sessionWithTasks.copy(isSubmitted = !sessionWithTasks.isSubmitted)
+//
+//            Log.d("ViewModel", "Original session: $sessionWithTasks")
+//            Log.d("ViewModel", "Updated session: $updatedSession")
+//
+//
+//            // Save the updated session to the repository
+//            repository.updateSessionWithTasks(updatedSession)
+//
+//            // Refresh the state of `timeEntriesByDay` to trigger recomposition
+//            val sessions = repository.getSessionsGroupedByDate()
+//            _timeEntriesByDay.value = sessions
+//
+//            Log.d("ViewModel", "Updated session: $updatedSession")
+//        }
+//    }
+
+
+//    fun toggleSessionSubmission(sessionWithTasks: SessionWithTasks) {
+//        viewModelScope.launch {
+//            Log.d("TimeCardViewModel", "Toggling session ID ${sessionWithTasks.sessionId}, current isSubmitted: ${sessionWithTasks.isSubmitted}")
+//
+//            // Toggle the `isSubmitted` property
+//            val updatedSession = sessionWithTasks.copy(isSubmitted = !sessionWithTasks.isSubmitted)
+//
+//            // Save the updated session to the repository
+//            repository.updateSessionWithTasks(updatedSession)
+//
+//            Log.d("TimeCardViewModel", "Updated session ID ${updatedSession.sessionId}, new isSubmitted: ${updatedSession.isSubmitted}")
+//
+//            // Refresh the sessions from the database
+//            updateTimeEntriesByDay()
+//        }
+//    }
 
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -462,6 +452,30 @@ class TimeCardViewModel @Inject constructor(
             Log.d("TimeCardViewModel", "Updated timeEntriesByDay with grouped sessions: $sessions")
         }
     }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun updateTaskSecondsOnResume() {
+        if (isTaskRunning && taskStartTime != null) {
+            val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+            val startTime = LocalTime.parse(taskStartTime, formatter)
+            val currentTime = LocalTime.now()
+
+            // Calculate the total elapsed seconds based on the start time and current time
+            val elapsedSeconds = Duration.between(startTime, currentTime).seconds.coerceAtLeast(0)
+            taskSeconds = elapsedSeconds
+            savedStateHandle["taskSeconds"] = elapsedSeconds
+
+            Log.d(
+                "TimeCardViewModel",
+                "Recalculated task seconds on resume: startTime=$taskStartTime, currentTime=$currentTime, elapsedSeconds=$elapsedSeconds"
+            )
+        }
+    }
+
+
+
+
+
 
 
 }
