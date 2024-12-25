@@ -179,8 +179,8 @@ fun TaskTimerControlsCard(viewModel: TimeCardViewModel, isClockedIn: Boolean, co
                 },
                 selectedMinute = selectedMinute,
                 setSelectedMinute = { selectedMinute = it },
-                viewModel = viewModel // Pass the viewModel
-            )
+                viewModel = viewModel, // Pass the viewModel
+                isClockedIn = isClockedIn )
 
 
             // Task Timer Controls
@@ -206,7 +206,8 @@ fun QuickTaskButtons(
     onSelect: (Int) -> Unit,
     selectedMinute: Int?,
     setSelectedMinute: (Int?) -> Unit,
-    viewModel: TimeCardViewModel
+    viewModel: TimeCardViewModel,
+    isClockedIn: Boolean // Add parameter to track clock-in status
 ) {
     // State to toggle the visibility of additional buttons
     var showMoreButtons by remember { mutableStateOf(false) }
@@ -230,7 +231,8 @@ fun QuickTaskButtons(
                         setSelectedMinute(minute)
                         viewModel.updateMaxTaskTime(minute.toString())
                         onSelect(minute)
-                    }
+                    },
+                    enabled = isClockedIn // Disable button if not clocked in
                 )
             }
         }
@@ -250,7 +252,8 @@ fun QuickTaskButtons(
                         setSelectedMinute(minute)
                         viewModel.updateMaxTaskTime(minute.toString())
                         onSelect(minute)
-                    }
+                    },
+                    enabled = isClockedIn // Disable button if not clocked in
                 )
             }
         }
@@ -270,7 +273,8 @@ fun QuickTaskButtons(
                             setSelectedMinute(minute)
                             viewModel.updateMaxTaskTime(minute.toString())
                             onSelect(minute)
-                        }
+                        },
+                        enabled = isClockedIn // Disable button if not clocked in
                     )
                 }
             }
@@ -301,8 +305,9 @@ fun QuickTaskButtons(
 
 
 
+
 @Composable
-fun TaskButton(minute: Int, isSelected: Boolean, onSelect: () -> Unit) {
+fun TaskButton(minute: Int, isSelected: Boolean, onSelect: () -> Unit, enabled: Boolean) {
     Button(
         onClick = onSelect,
         modifier = Modifier.size(56.dp),
@@ -310,8 +315,10 @@ fun TaskButton(minute: Int, isSelected: Boolean, onSelect: () -> Unit) {
         shape = MaterialTheme.shapes.small,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.secondary
-            else MaterialTheme.colorScheme.primary
-        )
+            else MaterialTheme.colorScheme.primary,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        enabled = enabled // Disable the button if the user is not clocked in
     ) {
         Text(
             text = "$minute",
@@ -321,6 +328,7 @@ fun TaskButton(minute: Int, isSelected: Boolean, onSelect: () -> Unit) {
         )
     }
 }
+
 
 
 

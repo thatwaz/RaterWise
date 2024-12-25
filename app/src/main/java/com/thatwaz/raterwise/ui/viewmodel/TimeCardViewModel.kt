@@ -247,6 +247,18 @@ class TimeCardViewModel @Inject constructor(
         taskSeconds = 0L
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun loadEntriesForWeek(startDate: LocalDate, endDate: LocalDate) {
+        viewModelScope.launch {
+            val weeklyEntries = repository.getSessionsWithTasksInDateRange(startDate.toString(), endDate.toString())
+            val groupedEntries = weeklyEntries.groupBy { it.session.date }
+
+            _currentWeekEntries.value = groupedEntries
+
+            Log.d("TimeCardViewModel", "Loaded entries for week $startDate to $endDate: $groupedEntries")
+        }
+    }
+
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun loadCurrentWeekEntries() {
@@ -313,16 +325,18 @@ class TimeCardViewModel @Inject constructor(
     @RequiresApi(Build.VERSION_CODES.O)
     private fun getCurrentWeekStartDate(): String {
         val today = LocalDate.now()
-        val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+        val startOfWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY)) // Start from Sunday
         return startOfWeek.toString()
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun getCurrentWeekEndDate(): String {
-        val today = LocalDate.now()
-        val endOfWeek = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
+        val startOfWeek = LocalDate.parse(getCurrentWeekStartDate())
+        val endOfWeek = startOfWeek.plusDays(6) // End of the week is Saturday
         return endOfWeek.toString()
     }
+
+
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun restoreSessionState() {
